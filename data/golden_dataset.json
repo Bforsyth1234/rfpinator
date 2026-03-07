@@ -1,0 +1,28 @@
+[
+  {
+    "question": "Is multi-factor authentication required for all users?",
+    "expectedAnswer": "Yes, multi-factor authentication (MFA) is required for all users accessing production systems, as stated in the access control policy.",
+    "expectedSources": ["access-policy.md"]
+  },
+  {
+    "question": "What is the minimum password length requirement?",
+    "expectedAnswer": "The minimum password length is 12 characters, as defined in the password policy.",
+    "expectedSources": ["password-policy.md"]
+  },
+  {
+    "question": "How often are security audits conducted?",
+    "expectedAnswer": "Security audits are conducted quarterly, with an annual comprehensive review performed by an external auditor.",
+    "expectedSources": ["audit-policy.md"]
+  },
+  {
+    "question": "What encryption standard is used for data at rest?",
+    "expectedAnswer": "AES-256 encryption is used for all data at rest, including database storage and backup media.",
+    "expectedSources": ["encryption-policy.md"]
+  },
+  {
+    "question": "What is the incident response time SLA?",
+    "expectedAnswer": "Critical security incidents must be acknowledged within 15 minutes and have an initial response within 1 hour.",
+    "expectedSources": ["incident-response-policy.md"]
+  }
+]
+

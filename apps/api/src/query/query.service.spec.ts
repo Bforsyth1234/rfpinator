@@ -1,0 +1,210 @@
+// Mock ESM-only dependencies
+jest.mock("uuid", () => ({
+  v4: () => "test-uuid-1234",
+}));
+
+jest.mock("llamaindex", () => ({
+  OpenAIEmbedding: class MockOpenAIEmbedding {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    getTextEmbedding(_text: string): Promise<number[]> {
+      return Promise.resolve([0.1, 0.2, 0.3]);
+    }
+    getTextEmbeddings(texts: string[]): Promise<number[][]> {
+      return Promise.resolve(texts.map(() => [0.1, 0.2, 0.3]));
+    }
+  },
+}));
+
+jest.mock("chromadb", () => ({
+  ChromaClient: class MockChromaClient {},
+}));
+
+import { QueryService } from "./query.service";
+import { EmbeddingService } from "../ingestion/embedding.service";
+import { VectorStoreService } from "../ingestion/vector-store.service";
+import { GroqProvider } from "./providers/groq.provider";
+import { OpenAiProvider } from "./providers/openai.provider";
+import type { LlmStructuredResponse } from "./providers";
+
+describe("QueryService", () => {
+  let service: QueryService;
+  let embedder: Partial<EmbeddingService>;
+  let vectorStore: Partial<VectorStoreService>;
+  let groqProvider: Partial<GroqProvider>;
+  let openAiProvider: Partial<OpenAiProvider>;
+  let mockCollection: any;
+
+  const mockLlmResponse: LlmStructuredResponse = {
+    answer: "MFA is required for all users per the access control policy.",
+    citation: "access-policy.md - Access Control section",
+    confidence_score: 0.92,
+  };
+
+  beforeEach(() => {
+    mockCollection = {
+      query: jest.fn().mockResolvedValue({
+        documents: [["All users must use MFA.", "Passwords must be 12+ chars."]],
+        metadatas: [
+          [
+            { source: "access-policy.md", pageOrSection: "Access Control", chunkIndex: 0, documentId: "doc-1" },
+            { source: "password-policy.md", pageOrSection: "Requirements", chunkIndex: 0, documentId: "doc-2" },
+          ],
+        ],
+        distances: [[0.15, 0.35]],
+      }),
+    };
+
+    embedder = {
+      embedText: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+    };
+
+    vectorStore = {
+      getCollection: jest.fn().mockReturnValue(mockCollection),
+    };
+
+    groqProvider = {
+      name: "groq",
+      generateAnswer: jest.fn().mockResolvedValue(mockLlmResponse),
+    };
+
+    openAiProvider = {
+      name: "openai",
+      generateAnswer: jest.fn().mockResolvedValue(mockLlmResponse),
+    };
+
+    service = new QueryService(
+      { defaultProvider: "groq", topK: 5, openaiModel: "gpt-4o-mini" },
+      embedder as EmbeddingService,
+      vectorStore as VectorStoreService,
+      groqProvider as GroqProvider,
+      openAiProvider as OpenAiProvider,
+    );
+  });
+
+  it("should be defined", () => {
+    expect(service).toBeDefined();
+  });
+
+  describe("query", () => {
+    it("should return structured RAG response with default provider", async () => {
+      const result = await service.query({ question: "Is MFA required?" });
+
+      expect(result.answer).toBe(mockLlmResponse.answer);
+      expect(result.confidenceScore).toBe(0.92);
+      expect(result.model).toBe("groq");
+      expect(result.citations).toHaveLength(2);
+      expect(result.citations[0].source).toBe("access-policy.md");
+      expect(result.retrievedChunks).toHaveLength(2);
+    });
+
+    it("should embed the question for similarity search", async () => {
+      await service.query({ question: "What is the password policy?" });
+
+      expect(embedder.embedText).toHaveBeenCalledWith(
+        "What is the password policy?",
+      );
+    });
+
+    it("should query ChromaDB with the embedded question", async () => {
+      await service.query({ question: "Test question" });
+
+      expect(mockCollection.query).toHaveBeenCalledWith({
+        queryEmbeddings: [[0.1, 0.2, 0.3]],
+        nResults: 5,
+      });
+    });
+
+    it("should use model_choice to select provider", async () => {
+      await service.query({
+        question: "Test",
+        model_choice: "openai",
+      });
+
+      expect(openAiProvider.generateAnswer).toHaveBeenCalled();
+      expect(groqProvider.generateAnswer).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to model field when model_choice is absent", async () => {
+      await service.query({
+        question: "Test",
+        model: "openai",
+      });
+
+      expect(openAiProvider.generateAnswer).toHaveBeenCalled();
+    });
+
+    it("should return empty response when no chunks are retrieved", async () => {
+      mockCollection.query.mockResolvedValue({
+        documents: [[]],
+        metadatas: [[]],
+        distances: [[]],
+      });
+
+      const result = await service.query({ question: "Unknown topic" });
+
+      expect(result.answer).toContain("No relevant context");
+      expect(result.confidenceScore).toBe(0);
+      expect(result.citations).toHaveLength(0);
+    });
+
+    it("should throw on unknown provider", async () => {
+      await expect(
+        service.query({ question: "Test", model_choice: "unknown-provider" }),
+      ).rejects.toThrow('Unknown LLM provider: "unknown-provider"');
+    });
+
+    it("should deduplicate citations by source", async () => {
+      mockCollection.query.mockResolvedValue({
+        documents: [["Chunk 1 from policy", "Chunk 2 from same policy"]],
+        metadatas: [
+          [
+            { source: "same-policy.md", pageOrSection: "Section A" },
+            { source: "same-policy.md", pageOrSection: "Section B" },
+          ],
+        ],
+        distances: [[0.1, 0.2]],
+      });
+
+      const result = await service.query({ question: "Test" });
+      expect(result.citations).toHaveLength(1);
+      expect(result.citations[0].source).toBe("same-policy.md");
+    });
+
+    it("should populate citation.page for PDF page metadata", async () => {
+      mockCollection.query.mockResolvedValue({
+        documents: [["Content from a PDF page."]],
+        metadatas: [
+          [{ source: "report.pdf", pageOrSection: "Page 5", chunkIndex: 0, documentId: "doc-3" }],
+        ],
+        distances: [[0.1]],
+      });
+
+      const result = await service.query({ question: "Test" });
+      expect(result.citations).toHaveLength(1);
+      expect(result.citations[0].page).toBe(5);
+    });
+
+    it("should leave citation.page undefined for markdown section metadata", async () => {
+      mockCollection.query.mockResolvedValue({
+        documents: [["Content from a markdown section."]],
+        metadatas: [
+          [{ source: "policy.md", pageOrSection: "Access Control", chunkIndex: 0, documentId: "doc-4" }],
+        ],
+        distances: [[0.1]],
+      });
+
+      const result = await service.query({ question: "Test" });
+      expect(result.citations).toHaveLength(1);
+      expect(result.citations[0].page).toBeUndefined();
+    });
+  });
+
+  describe("getAvailableProviders", () => {
+    it("should return groq and openai", () => {
+      const providers = service.getAvailableProviders();
+      expect(providers).toContain("groq");
+      expect(providers).toContain("openai");
+    });
+  });
+});
+
