@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import type { QuestionnaireRow } from "@rfpinator/shared";
 import { uploadFiles, submitQuery } from "@/lib/api-client";
+import {
+  parseQuestionnaireFile,
+  type QuestionnaireExportTemplate,
+} from "@/lib/questionnaire-export";
 
 interface UploadViewProps {
   selectedModel: string;
-  onRowsGenerated: (rows: QuestionnaireRow[]) => void;
+  onRowsGenerated: (
+    rows: QuestionnaireRow[],
+    exportTemplate: QuestionnaireExportTemplate,
+  ) => void;
 }
 
 type UploadStatus = "idle" | "uploading" | "processing" | "done" | "error";
@@ -38,49 +44,6 @@ export function UploadView({
     [],
   );
 
-  const parseCsvQuestions = (text: string): string[] => {
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (lines.length === 0) return [];
-    // If first line looks like a header, skip it
-    const first = lines[0].toLowerCase();
-    const start =
-      first.includes("question") || first.includes("prompt") ? 1 : 0;
-    return lines.slice(start).map((l) => {
-      // Strip surrounding quotes and take first CSV column
-      const col = l.split(",")[0].replace(/^"|"$/g, "").trim();
-      return col;
-    });
-  };
-
-  const parseQuestionnaire = async (file: File): Promise<string[]> => {
-    const ext = file.name.split(".").pop()?.toLowerCase();
-
-    if (ext === "xlsx" || ext === "xls") {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-        defval: "",
-      });
-      if (rows.length === 0) return [];
-      // Use the first column (by key order) as the question column,
-      // or a column named "question"/"prompt" if present
-      const keys = Object.keys(rows[0]);
-      const qKey =
-        keys.find((k) => /question|prompt/i.test(k)) ?? keys[0];
-      return rows
-        .map((r) => String(r[qKey] ?? "").trim())
-        .filter(Boolean);
-    }
-
-    // Default: CSV / plain text
-    const text = await file.text();
-    return parseCsvQuestions(text);
-  };
-
   const handleSubmit = async () => {
     if (sourceFiles.length === 0 || !questionnaireFile) return;
     setError(null);
@@ -92,35 +55,56 @@ export function UploadView({
 
       // Step 2: Parse questionnaire
       setStatus("processing");
-      setProgress("Parsing questionnaire…");
-      const questions = await parseQuestionnaire(questionnaireFile);
+      setProgress("Detecting questionnaire columns…");
+      const parsedQuestionnaire = await parseQuestionnaireFile(
+        questionnaireFile,
+        selectedModel,
+      );
+      const questions = parsedQuestionnaire.questions;
       if (questions.length === 0) {
         throw new Error("No questions found in the questionnaire file.");
       }
 
-      // Step 3: Query each question
+      // Step 3: Query questions in concurrent batches
+      const BATCH_SIZE = 10;
       const rows: QuestionnaireRow[] = [];
-      for (let i = 0; i < questions.length; i++) {
+      const validQuestions = questions
+        .map((q, idx) => ({ ...q, originalIndex: idx }))
+        .filter((q) => q.question.trim().length > 0);
+
+      for (let batchStart = 0; batchStart < validQuestions.length; batchStart += BATCH_SIZE) {
+        const batch = validQuestions.slice(batchStart, batchStart + BATCH_SIZE);
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, validQuestions.length);
         setProgress(
-          `Answering question ${i + 1} of ${questions.length}…`,
+          `Answering questions ${batchStart + 1}–${batchEnd} of ${validQuestions.length}…`,
         );
-        const resp = await submitQuery({
-          question: questions[i],
-          model_choice: selectedModel,
-        });
-        rows.push({
-          id: `q-${i}`,
-          question: questions[i],
-          answer: resp.answer,
-          citations: resp.citations,
-          confidenceScore: resp.confidenceScore,
-          status: "pending",
-        });
+
+        const batchResults = await Promise.all(
+          batch.map(async (entry) => {
+            const question = entry.question.trim();
+            const resp = await submitQuery({
+              question,
+              model_choice: selectedModel,
+            });
+            return {
+              id: entry.id,
+              question,
+              answer: resp.answer,
+              citations: resp.citations,
+              confidenceScore: resp.confidenceScore,
+              status: "pending" as const,
+              location: entry.location,
+              answerable: resp.answerable,
+            };
+          }),
+        );
+
+        rows.push(...batchResults);
       }
 
       setStatus("done");
       setProgress("");
-      onRowsGenerated(rows);
+      onRowsGenerated(rows, parsedQuestionnaire.exportTemplate);
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Unknown error");

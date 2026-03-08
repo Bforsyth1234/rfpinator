@@ -4,6 +4,7 @@ import { ChromaClient } from "chromadb";
 import { v4 as uuidv4 } from "uuid";
 import { chromaConfig } from "../config";
 import type { TextChunk } from "./chunking.service";
+import type { DocumentInfo } from "@rfpinator/shared";
 
 type ChromaCollection = Awaited<ReturnType<ChromaClient["getOrCreateCollection"]>>;
 
@@ -85,6 +86,52 @@ export class VectorStoreService implements OnModuleInit {
    */
   getConnectionUrl(): string {
     return `http://${this.config.host}:${this.config.port}`;
+  }
+
+  /**
+   * List all unique documents in the collection with their chunk counts.
+   */
+  async listDocuments(): Promise<DocumentInfo[]> {
+    const all = await this.collection.get({});
+    const docMap = new Map<string, { source: string; count: number }>();
+
+    if (all.metadatas) {
+      for (const meta of all.metadatas) {
+        if (!meta) continue;
+        const docId = String(meta.documentId ?? "unknown");
+        const source = String(meta.source ?? "unknown");
+        const existing = docMap.get(docId);
+        if (existing) {
+          existing.count++;
+        } else {
+          docMap.set(docId, { source, count: 1 });
+        }
+      }
+    }
+
+    return Array.from(docMap.entries()).map(([documentId, info]) => ({
+      documentId,
+      source: info.source,
+      chunkCount: info.count,
+    }));
+  }
+
+  /**
+   * Delete all chunks belonging to a specific document.
+   */
+  async deleteDocument(documentId: string): Promise<number> {
+    // Get all chunk IDs for this document
+    const all = await this.collection.get({
+      where: { documentId },
+    });
+
+    if (!all.ids || all.ids.length === 0) {
+      return 0;
+    }
+
+    await this.collection.delete({ ids: all.ids });
+    this.logger.log(`Deleted ${all.ids.length} chunks for document ${documentId}`);
+    return all.ids.length;
   }
 }
 

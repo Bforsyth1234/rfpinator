@@ -25,8 +25,20 @@ export class OpenAiProvider implements LlmProvider {
     systemPrompt: string,
     userMessage: string,
   ): Promise<LlmStructuredResponse> {
-    const url = "https://api.openai.com/v1/chat/completions";
+    const content = await this.requestCompletion(systemPrompt, userMessage);
+    return this.parseAnswerResponse(content);
+  }
 
+  async generateJson<T>(systemPrompt: string, userMessage: string): Promise<T> {
+    const content = await this.requestCompletion(systemPrompt, userMessage);
+    return this.parseJson<T>(content);
+  }
+
+  private async requestCompletion(
+    systemPrompt: string,
+    userMessage: string,
+  ): Promise<string> {
+    const url = "https://api.openai.com/v1/chat/completions";
     const body = {
       model: this.queryCfg.openaiModel,
       messages: [
@@ -60,19 +72,21 @@ export class OpenAiProvider implements LlmProvider {
       throw new Error("OpenAI returned empty response");
     }
 
-    return this.parseResponse(content);
+    return content;
   }
 
-  private parseResponse(raw: string): LlmStructuredResponse {
+  private parseAnswerResponse(raw: string): LlmStructuredResponse {
     try {
       const parsed = JSON.parse(raw);
+      const confidenceScore =
+        typeof parsed.confidence_score === "number"
+          ? Math.max(0, Math.min(1, parsed.confidence_score))
+          : 0;
       return {
         answer: parsed.answer ?? "",
         citation: parsed.citation ?? "",
-        confidence_score:
-          typeof parsed.confidence_score === "number"
-            ? Math.max(0, Math.min(1, parsed.confidence_score))
-            : 0,
+        confidence_score: confidenceScore,
+        answerable: typeof parsed.answerable === "boolean" ? parsed.answerable : confidenceScore >= 0.3,
       };
     } catch {
       this.logger.warn("Failed to parse OpenAI JSON response, using raw text");
@@ -80,7 +94,17 @@ export class OpenAiProvider implements LlmProvider {
         answer: raw,
         citation: "",
         confidence_score: 0,
+        answerable: false,
       };
+    }
+  }
+
+  private parseJson<T>(raw: string): T {
+    try {
+      return JSON.parse(raw) as T;
+    } catch (error) {
+      this.logger.warn("Failed to parse OpenAI JSON response");
+      throw error;
     }
   }
 }

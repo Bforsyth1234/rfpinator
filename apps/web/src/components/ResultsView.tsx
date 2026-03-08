@@ -1,16 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import type { QuestionnaireRow } from "@rfpinator/shared";
+import type { Citation, QuestionnaireRow } from "@rfpinator/shared";
+import {
+  exportResultsFile,
+  type QuestionnaireExportTemplate,
+} from "@/lib/questionnaire-export";
 
 interface ResultsViewProps {
   rows: QuestionnaireRow[];
+  exportTemplate?: QuestionnaireExportTemplate | null;
   onUpdateRow: (id: string, updates: Partial<QuestionnaireRow>) => void;
 }
 
-export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
+export function ResultsView({
+  rows,
+  exportTemplate,
+  onUpdateRow,
+}: ResultsViewProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
+  const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (setFn: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) => {
+    setFn((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const startEdit = (row: QuestionnaireRow) => {
     setEditingId(row.id);
@@ -32,6 +52,14 @@ export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
     onUpdateRow(id, { status: "approved" });
   };
 
+  const approveAll = () => {
+    rows.forEach((row) => {
+      if (row.status !== "approved") {
+        onUpdateRow(row.id, { status: "approved" });
+      }
+    });
+  };
+
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-gray-400">
@@ -44,6 +72,15 @@ export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
   }
 
   const approved = rows.filter((r) => r.status === "approved").length;
+  const answerable = rows.filter((r) => r.answerable !== false).length;
+  const unanswerable = rows.length - answerable;
+  const allApproved = rows.length > 0 && rows.every((r) => r.status === "approved");
+  const exportLabel = exportTemplate?.kind === "xlsx" ? "Export XLSX" : "Export CSV";
+
+  const exportResults = async () => {
+    if (!allApproved) return;
+    await exportResultsFile(rows, exportTemplate);
+  };
 
   return (
     <div className="space-y-6">
@@ -53,13 +90,53 @@ export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
           <p className="mt-1 text-sm text-gray-500">
             {approved} of {rows.length} approved
           </p>
+          <div className="mt-1 flex items-center gap-3 text-sm">
+            <span className="inline-flex items-center gap-1 text-green-700">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              {answerable} answerable
+            </span>
+            {unanswerable > 0 && (
+              <span className="inline-flex items-center gap-1 text-red-700">
+                <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                {unanswerable} unanswerable
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={approveAll}
+              disabled={allApproved}
+              className="btn-secondary"
+            >
+              Approve All
+            </button>
+            <button
+              type="button"
+              onClick={exportResults}
+              disabled={!allApproved}
+              className="btn-primary"
+            >
+              {exportLabel}
+            </button>
+          </div>
+          {!allApproved && (
+            <p className="text-sm text-gray-500">
+              All answers must be approved before export.
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-surface-border bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-surface-border bg-white shadow-sm">
         <table className="min-w-full divide-y divide-surface-border">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                Location
+              </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Question
               </th>
@@ -79,10 +156,44 @@ export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
           </thead>
           <tbody className="divide-y divide-surface-border">
             {rows.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-50">
+              <tr
+                key={row.id}
+                className={
+                  row.answerable === false
+                    ? "border-l-4 border-red-200 bg-red-50 hover:bg-red-100"
+                    : "hover:bg-gray-50"
+                }
+              >
+                {/* Location */}
+                <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">
+                  {row.location ? (
+                    <div className="space-y-0.5">
+                      {row.location.sheetName && (
+                        <p className="font-medium text-gray-700">{row.location.sheetName}</p>
+                      )}
+                      <p>Row {row.location.row}, Col {row.location.column}</p>
+                    </div>
+                  ) : (
+                    <span className="italic text-gray-400">—</span>
+                  )}
+                </td>
+
                 {/* Question */}
                 <td className="max-w-xs px-4 py-3 text-sm text-gray-900">
-                  <p className="line-clamp-3">{row.question}</p>
+                  <div>
+                    <p className={`whitespace-pre-wrap ${expandedQuestions.has(row.id) ? "" : "line-clamp-3"}`}>
+                      {row.question}
+                    </p>
+                    {row.question && row.question.length > 150 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(setExpandedQuestions, row.id)}
+                        className="mt-1 text-xs font-medium text-brand-primary hover:underline"
+                      >
+                        {expandedQuestions.has(row.id) ? "Show less" : "Show more"}
+                      </button>
+                    )}
+                  </div>
                 </td>
 
                 {/* Answer */}
@@ -95,21 +206,31 @@ export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
                       className="input w-full"
                     />
                   ) : (
-                    <p className="line-clamp-4 whitespace-pre-wrap">
-                      {row.answer}
-                    </p>
+                    <div>
+                      <p
+                        className={`whitespace-pre-wrap ${expandedAnswers.has(row.id) ? "" : "line-clamp-4"}`}
+                      >
+                        {row.answer}
+                      </p>
+                      {row.answer && row.answer.length > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(setExpandedAnswers, row.id)}
+                          className="mt-1 text-xs font-medium text-brand-primary hover:underline"
+                        >
+                          {expandedAnswers.has(row.id) ? "Show less" : "Show more"}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
 
                 {/* Citation */}
-                <td className="max-w-[200px] px-4 py-3 text-sm text-gray-500">
+                <td className="max-w-[240px] px-4 py-3 text-sm text-gray-500">
                   {row.citations && row.citations.length > 0 ? (
                     <ul className="space-y-1">
                       {row.citations.map((c, i) => (
-                        <li key={i} className="truncate" title={c.text}>
-                          📎 {c.source}
-                          {c.page != null && ` (p.${c.page})`}
-                        </li>
+                        <CitationItem key={`${row.id}-${c.source}-${c.page ?? i}`} citation={c} />
                       ))}
                     </ul>
                   ) : (
@@ -152,6 +273,43 @@ export function ResultsView({ rows, onUpdateRow }: ResultsViewProps) {
         </table>
       </div>
     </div>
+  );
+}
+
+function CitationItem({ citation }: { citation: Citation }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <li className="rounded-md border border-surface-border bg-gray-50 p-2">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        aria-expanded={isExpanded}
+        className="flex w-full items-start gap-2 text-left"
+      >
+        <span
+          aria-hidden="true"
+          className={`mt-0.5 text-xs text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+        >
+          ▶
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-gray-700">
+            📎 {citation.source}
+            {citation.page != null && ` (p.${citation.page})`}
+          </span>
+          <span className="mt-0.5 block text-xs text-brand-600">
+            {isExpanded ? "Hide citation text" : "Show citation text"}
+          </span>
+        </span>
+      </button>
+
+      {isExpanded && (
+        <blockquote className="mt-2 border-t border-l-2 border-surface-border pt-2 pl-3 text-xs leading-5 text-gray-600 whitespace-pre-wrap break-words italic">
+          “{citation.text}”
+        </blockquote>
+      )}
+    </li>
   );
 }
 

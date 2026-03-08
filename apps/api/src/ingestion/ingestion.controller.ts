@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
   Post,
   UploadedFiles,
   UseInterceptors,
@@ -13,14 +16,19 @@ import type {
   IngestResponse,
   IngestBatchResponse,
   IngestDirectoryRequest,
+  DocumentInfo,
 } from "@rfpinator/shared";
 import { IngestionService } from "./ingestion.service";
+import { VectorStoreService } from "./vector-store.service";
 
 @Controller("ingestion")
 export class IngestionController {
   private readonly logger = new Logger(IngestionController.name);
 
-  constructor(private readonly ingestionService: IngestionService) {}
+  constructor(
+    private readonly ingestionService: IngestionService,
+    private readonly vectorStore: VectorStoreService,
+  ) {}
 
   /**
    * POST /ingestion/upload
@@ -79,6 +87,29 @@ export class IngestionController {
   ): Promise<IngestResponse> {
     this.logger.log(`File ingestion request: ${body.filePath}`);
     return this.ingestionService.ingestFile(body.filePath);
+  }
+
+  /**
+   * GET /ingestion/documents
+   * List all documents in the vector store.
+   */
+  @Get("documents")
+  async listDocuments(): Promise<{ documents: DocumentInfo[] }> {
+    const documents = await this.vectorStore.listDocuments();
+    return { documents };
+  }
+
+  /**
+   * DELETE /ingestion/documents/:id
+   * Delete a document and all its chunks from the vector store.
+   */
+  @Delete("documents/:id")
+  async deleteDocument(
+    @Param("id") documentId: string,
+  ): Promise<{ deleted: number }> {
+    this.logger.log(`Delete document request: ${documentId}`);
+    const deleted = await this.vectorStore.deleteDocument(documentId);
+    return { deleted };
   }
 }
 

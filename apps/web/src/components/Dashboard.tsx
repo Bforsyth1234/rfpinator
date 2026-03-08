@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import type { QuestionnaireRow } from "@rfpinator/shared";
 import { fetchProviders } from "@/lib/api-client";
+import type { QuestionnaireExportTemplate } from "@/lib/questionnaire-export";
 import { Sidebar, type View } from "./Sidebar";
 import { UploadView } from "./UploadView";
 import { ResultsView } from "./ResultsView";
+import { DocumentsView } from "./DocumentsView";
+import { EvaluationView } from "./EvaluationView";
 
 export function Dashboard() {
   const [view, setView] = useState<View>("upload");
   const [selectedModel, setSelectedModel] = useState("groq");
   const [providers, setProviders] = useState<string[]>([]);
   const [rows, setRows] = useState<QuestionnaireRow[]>([]);
+  const [exportTemplate, setExportTemplate] =
+    useState<QuestionnaireExportTemplate | null>(null);
 
   // Fetch available providers on mount
   useEffect(() => {
@@ -21,8 +26,12 @@ export function Dashboard() {
   }, []);
 
   const handleRowsGenerated = useCallback(
-    (newRows: QuestionnaireRow[]) => {
+    (
+      newRows: QuestionnaireRow[],
+      nextExportTemplate: QuestionnaireExportTemplate,
+    ) => {
       setRows(newRows);
+      setExportTemplate(nextExportTemplate);
       setView("results");
     },
     [],
@@ -55,7 +64,15 @@ export function Dashboard() {
           />
         )}
         {view === "results" && (
-          <ResultsView rows={rows} onUpdateRow={handleUpdateRow} />
+          <ResultsView
+            rows={rows}
+            exportTemplate={exportTemplate}
+            onUpdateRow={handleUpdateRow}
+          />
+        )}
+        {view === "documents" && <DocumentsView />}
+        {view === "evaluation" && (
+          <EvaluationView selectedModel={selectedModel} />
         )}
       </main>
     </div>

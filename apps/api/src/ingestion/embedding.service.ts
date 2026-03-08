@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigType } from "@nestjs/config";
 import { OpenAIEmbedding } from "llamaindex";
 import { embeddingConfig } from "../config";
@@ -10,7 +10,7 @@ export class EmbeddingService {
 
   constructor(
     @Inject(embeddingConfig.KEY)
-    private readonly config: ConfigType<typeof embeddingConfig>,
+    config: ConfigType<typeof embeddingConfig>,
   ) {
     this.embedModel = new OpenAIEmbedding({
       model: config.model as any,
@@ -24,6 +24,9 @@ export class EmbeddingService {
    */
   async embedTexts(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
+    texts.forEach((text, index) => {
+      this.validateText(text, `Embedding text at index ${index}`);
+    });
     this.logger.debug(`Generating embeddings for ${texts.length} chunks`);
     return this.embedModel.getTextEmbeddings(texts);
   }
@@ -32,6 +35,7 @@ export class EmbeddingService {
    * Generate embedding for a single text.
    */
   async embedText(text: string): Promise<number[]> {
+    this.validateText(text, "Embedding text");
     return this.embedModel.getTextEmbedding(text);
   }
 
@@ -40,6 +44,12 @@ export class EmbeddingService {
    */
   getModel(): OpenAIEmbedding {
     return this.embedModel;
+  }
+
+  private validateText(text: unknown, label: string): void {
+    if (typeof text !== "string" || !text.trim()) {
+      throw new BadRequestException(`${label} must be a non-empty string.`);
+    }
   }
 }
 

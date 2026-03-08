@@ -3,9 +3,19 @@
  * Base URL defaults to localhost:3001 (NestJS API).
  */
 import type {
+  QuestionnaireColumnDetectionRequest,
+  QuestionnaireColumnDetectionResponse,
+  QuestionnaireRowClassificationRequest,
+  QuestionnaireRowClassificationResponse,
   RagQueryRequest,
   RagQueryResponse,
   IngestBatchResponse,
+  EvalSummary,
+  EvalResult,
+  GoldenDatasetEntry,
+  DocumentInfo,
+  SavedEvalRun,
+  SavedEvalRunListItem,
 } from "@rfpinator/shared";
 
 const API_BASE =
@@ -48,10 +58,49 @@ export async function fetchProviders(): Promise<string[]> {
 export async function submitQuery(
   req: RagQueryRequest,
 ): Promise<RagQueryResponse> {
+  if (typeof req.question !== "string" || !req.question.trim()) {
+    throw new Error("Question must be a non-empty string.");
+  }
+
   return apiFetch<RagQueryResponse>("/query", {
     method: "POST",
-    body: JSON.stringify(req),
+    body: JSON.stringify({
+      ...req,
+      question: req.question.trim(),
+    }),
   });
+}
+
+export async function detectQuestionnaireColumns(
+  req: QuestionnaireColumnDetectionRequest,
+): Promise<QuestionnaireColumnDetectionResponse> {
+  if (!Array.isArray(req.rows) || req.rows.length === 0) {
+    throw new Error("Questionnaire rows must be a non-empty 2D array.");
+  }
+
+  return apiFetch<QuestionnaireColumnDetectionResponse>(
+    "/query/detect-questionnaire-columns",
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
+}
+
+export async function classifyQuestionnaireRows(
+  req: QuestionnaireRowClassificationRequest,
+): Promise<QuestionnaireRowClassificationResponse> {
+  if (!Array.isArray(req.rows) || req.rows.length === 0) {
+    throw new Error("Rows must be a non-empty array.");
+  }
+
+  return apiFetch<QuestionnaireRowClassificationResponse>(
+    "/query/classify-questionnaire-rows",
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
 }
 
 // ── Ingestion (file upload) ────────────────
@@ -76,5 +125,154 @@ export async function uploadFiles(
   }
 
   return res.json() as Promise<IngestBatchResponse>;
+}
+
+
+// ── Documents (vector store) ─────────────────
+
+export async function fetchDocuments(): Promise<DocumentInfo[]> {
+  const data = await apiFetch<{ documents: DocumentInfo[] }>(
+    "/ingestion/documents",
+  );
+  return data.documents;
+}
+
+export async function deleteDocument(
+  documentId: string,
+): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>(`/ingestion/documents/${documentId}`, {
+    method: "DELETE",
+  });
+}
+
+// ── Evaluation ───────────────────────────────
+
+export async function fetchGoldenDataset(): Promise<GoldenDatasetEntry[]> {
+  const data = await apiFetch<{ entries: GoldenDatasetEntry[] }>(
+    "/evaluation/dataset",
+  );
+  return data.entries;
+}
+
+export async function addGoldenDatasetEntry(
+  entry: GoldenDatasetEntry,
+): Promise<GoldenDatasetEntry[]> {
+  const data = await apiFetch<{ entries: GoldenDatasetEntry[] }>(
+    "/evaluation/dataset",
+    {
+      method: "POST",
+      body: JSON.stringify(entry),
+    },
+  );
+  return data.entries;
+}
+
+export async function updateGoldenDatasetEntry(
+  index: number,
+  entry: GoldenDatasetEntry,
+): Promise<GoldenDatasetEntry[]> {
+  const data = await apiFetch<{ entries: GoldenDatasetEntry[] }>(
+    `/evaluation/dataset/${index}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(entry),
+    },
+  );
+  return data.entries;
+}
+
+export async function deleteGoldenDatasetEntry(
+  index: number,
+): Promise<GoldenDatasetEntry[]> {
+  const data = await apiFetch<{ entries: GoldenDatasetEntry[] }>(
+    `/evaluation/dataset/${index}`,
+    {
+      method: "DELETE",
+    },
+  );
+  return data.entries;
+}
+
+/**
+ * Stream evaluation results via SSE.
+ * Calls `onResult` for each per-question result and returns the final EvalSummary.
+ */
+export async function streamEvaluation(options: {
+  provider?: string;
+  onResult: (result: EvalResult, index: number, total: number) => void;
+  signal?: AbortSignal;
+}): Promise<EvalSummary> {
+  const params = new URLSearchParams();
+  if (options.provider) params.set("provider", options.provider);
+
+  const res = await fetch(
+    `${API_BASE}/evaluation/run/stream?${params.toString()}`,
+    { signal: options.signal },
+  );
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`SSE stream failed (${res.status}): ${body}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalSummary: EvalSummary | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE frames: "data: {...}\n\n"
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+
+    for (const part of parts) {
+      const lines = part.split("\n");
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const json = line.slice(6);
+        try {
+          const event = JSON.parse(json);
+          if (event.type === "result") {
+            options.onResult(event.result as EvalResult, event.index, event.total);
+          } else if (event.type === "summary") {
+            finalSummary = event.summary as EvalSummary;
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue; // skip malformed
+          throw e;
+        }
+      }
+    }
+  }
+
+  if (!finalSummary) {
+    throw new Error("Stream ended without a summary event");
+  }
+  return finalSummary;
+}
+
+// ── Eval Run History ────────────────────────────
+
+export async function fetchEvalRuns(): Promise<SavedEvalRunListItem[]> {
+  const data = await apiFetch<{ runs: SavedEvalRunListItem[] }>(
+    "/evaluation/runs",
+  );
+  return data.runs;
+}
+
+export async function fetchEvalRun(id: string): Promise<SavedEvalRun> {
+  return apiFetch<SavedEvalRun>(`/evaluation/runs/${id}`);
+}
+
+export async function deleteEvalRun(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/evaluation/runs/${id}`, {
+    method: "DELETE",
+  });
 }
 

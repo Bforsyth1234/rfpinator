@@ -1,14 +1,19 @@
 import { Injectable, Logger } from "@nestjs/common";
 import * as fs from "fs";
 import * as path from "path";
+import { v4 as uuidv4 } from "uuid";
 import type {
   GoldenDatasetEntry,
   EvalResult,
   EvalSummary,
   RagQueryResponse,
+  SavedEvalRun,
+  SavedEvalRunListItem,
 } from "@rfpinator/shared";
-import { QueryService } from "../query/query.service";
+import { QueryService, RAG_SYSTEM_PROMPT } from "../query/query.service";
 import { JudgeService } from "./judge.service";
+
+const EVAL_RUNS_DIR = path.resolve(__dirname, "../../../../data/eval_runs");
 
 @Injectable()
 export class EvaluationService {
@@ -52,7 +57,30 @@ export class EvaluationService {
     options?: { provider?: string },
   ): Promise<EvalSummary> {
     const results: EvalResult[] = [];
+    for await (const result of this.evaluateStream(dataset, options)) {
+      results.push(result);
+    }
 
+    const summary = this.aggregate(results);
+    this.logger.log(
+      `Evaluation complete: avgRetrieval=${summary.avgRetrieval.toFixed(2)}, avgFaithfulness=${summary.avgFaithfulness.toFixed(2)}`,
+    );
+
+    // Auto-persist the run
+    const provider = options?.provider ?? "groq";
+    const savedRun = this.saveRun(summary, provider);
+    this.logger.log(`Eval run persisted as ${savedRun.id}`);
+
+    return summary;
+  }
+
+  /**
+   * Streaming evaluation: yields one EvalResult per question as it completes.
+   */
+  async *evaluateStream(
+    dataset: GoldenDatasetEntry[],
+    options?: { provider?: string },
+  ): AsyncGenerator<EvalResult> {
     for (let i = 0; i < dataset.length; i++) {
       const entry = dataset[i];
       this.logger.log(
@@ -61,16 +89,15 @@ export class EvaluationService {
 
       try {
         const result = await this.evaluateEntry(entry, options?.provider);
-        results.push(result);
         this.logger.log(
           `  → retrieval=${result.retrievalScore}/5, faithfulness=${result.faithfulnessScore}/5`,
         );
+        yield result;
       } catch (error) {
         this.logger.error(
           `  → FAILED: ${error instanceof Error ? error.message : String(error)}`,
         );
-        // Record a failed entry with minimum scores
-        results.push({
+        yield {
           question: entry.question,
           generatedAnswer: `[ERROR] ${error instanceof Error ? error.message : String(error)}`,
           expectedAnswer: entry.expectedAnswer,
@@ -78,15 +105,18 @@ export class EvaluationService {
           retrievalScore: 1,
           citedSources: [],
           expectedSources: entry.expectedSources,
-        });
+        };
       }
     }
+  }
 
-    const summary = this.aggregate(results);
-    this.logger.log(
-      `Evaluation complete: avgRetrieval=${summary.avgRetrieval.toFixed(2)}, avgFaithfulness=${summary.avgFaithfulness.toFixed(2)}`,
-    );
-    return summary;
+  /**
+   * Save a golden dataset to a JSON file.
+   */
+  saveDataset(filePath: string, entries: GoldenDatasetEntry[]): void {
+    const resolved = path.resolve(filePath);
+    fs.writeFileSync(resolved, JSON.stringify(entries, null, 2) + "\n", "utf-8");
+    this.logger.log(`Saved ${entries.length} entries to ${resolved}`);
   }
 
   /**
@@ -113,8 +143,11 @@ export class EvaluationService {
 
     const citedSources = ragResponse.citations.map((c) => c.source);
 
-    // 3. Call the LLM judge
-    const scores = await this.judgeService.score({
+    // 3. Reconstruct the RAG user message (same format as QueryService)
+    const ragUserMessage = `Context chunks:\n${retrievedContext}\n\nQuestion: ${entry.question}`;
+
+    // 4. Call the LLM judge (now returns prompts too)
+    const judgeResult = await this.judgeService.score({
       question: entry.question,
       expectedAnswer: entry.expectedAnswer,
       generatedAnswer: ragResponse.answer,
@@ -127,17 +160,23 @@ export class EvaluationService {
       question: entry.question,
       generatedAnswer: ragResponse.answer,
       expectedAnswer: entry.expectedAnswer,
-      faithfulnessScore: scores.faithfulnessScore,
-      retrievalScore: scores.retrievalScore,
+      faithfulnessScore: judgeResult.faithfulnessScore,
+      retrievalScore: judgeResult.retrievalScore,
       citedSources,
       expectedSources: entry.expectedSources,
+      prompts: {
+        ragSystemPrompt: RAG_SYSTEM_PROMPT,
+        ragUserMessage,
+        judgeSystemPrompt: judgeResult.judgeSystemPrompt,
+        judgeUserMessage: judgeResult.judgeUserMessage,
+      },
     };
   }
 
   /**
    * Aggregate individual results into a summary.
    */
-  private aggregate(results: EvalResult[]): EvalSummary {
+  aggregate(results: EvalResult[]): EvalSummary {
     const total = results.length;
     const avgFaithfulness =
       total > 0
@@ -154,6 +193,80 @@ export class EvaluationService {
       avgRetrieval: Math.round(avgRetrieval * 100) / 100,
       results,
     };
+  }
+
+  // ── Eval Run Persistence ────────────────────────────────
+
+  private ensureRunsDir(): void {
+    if (!fs.existsSync(EVAL_RUNS_DIR)) {
+      fs.mkdirSync(EVAL_RUNS_DIR, { recursive: true });
+    }
+  }
+
+  /**
+   * Save an evaluation run to disk and return the saved run object.
+   */
+  saveRun(summary: EvalSummary, provider: string): SavedEvalRun {
+    this.ensureRunsDir();
+    const run: SavedEvalRun = {
+      id: uuidv4(),
+      createdAt: new Date().toISOString(),
+      provider,
+      summary,
+    };
+    const filePath = path.join(EVAL_RUNS_DIR, `${run.id}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(run, null, 2));
+    this.logger.log(`Saved eval run ${run.id}`);
+    return run;
+  }
+
+  /**
+   * List all saved evaluation runs (lightweight, no per-question results).
+   */
+  listRuns(): SavedEvalRunListItem[] {
+    this.ensureRunsDir();
+    const files = fs.readdirSync(EVAL_RUNS_DIR).filter((f) => f.endsWith(".json"));
+    const items: SavedEvalRunListItem[] = [];
+    for (const file of files) {
+      try {
+        const raw = fs.readFileSync(path.join(EVAL_RUNS_DIR, file), "utf-8");
+        const run: SavedEvalRun = JSON.parse(raw);
+        items.push({
+          id: run.id,
+          createdAt: run.createdAt,
+          provider: run.provider,
+          totalQuestions: run.summary.totalQuestions,
+          avgFaithfulness: run.summary.avgFaithfulness,
+          avgRetrieval: run.summary.avgRetrieval,
+        });
+      } catch {
+        this.logger.warn(`Skipping corrupt eval run file: ${file}`);
+      }
+    }
+    // Sort newest first
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return items;
+  }
+
+  /**
+   * Get a single saved evaluation run by ID.
+   */
+  getRun(id: string): SavedEvalRun | null {
+    const filePath = path.join(EVAL_RUNS_DIR, `${id}.json`);
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(raw);
+  }
+
+  /**
+   * Delete a saved evaluation run by ID.
+   */
+  deleteRun(id: string): boolean {
+    const filePath = path.join(EVAL_RUNS_DIR, `${id}.json`);
+    if (!fs.existsSync(filePath)) return false;
+    fs.unlinkSync(filePath);
+    this.logger.log(`Deleted eval run ${id}`);
+    return true;
   }
 }
 

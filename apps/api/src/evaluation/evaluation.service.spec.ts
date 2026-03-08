@@ -9,7 +9,7 @@ jest.mock("llamaindex", () => ({
 jest.mock("chromadb", () => ({ ChromaClient: class {} }));
 
 import { EvaluationService } from "./evaluation.service";
-import { JudgeService, JudgeScores } from "./judge.service";
+import { JudgeService, JudgeResult } from "./judge.service";
 import { QueryService } from "../query/query.service";
 import type { RagQueryResponse, GoldenDatasetEntry } from "@rfpinator/shared";
 
@@ -26,11 +26,14 @@ describe("EvaluationService", () => {
     retrievedChunks: [
       { text: "All users must use MFA.", source: "access-policy.md", score: 0.85 },
     ],
+    answerable: true,
   };
 
-  const mockScores: JudgeScores = {
+  const mockScores: JudgeResult = {
     retrievalScore: 4,
     faithfulnessScore: 5,
+    judgeSystemPrompt: "mock judge system prompt",
+    judgeUserMessage: "mock judge user message",
   };
 
   const sampleDataset: GoldenDatasetEntry[] = [

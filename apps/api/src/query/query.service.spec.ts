@@ -19,6 +19,7 @@ jest.mock("chromadb", () => ({
   ChromaClient: class MockChromaClient {},
 }));
 
+import { BadRequestException } from "@nestjs/common";
 import { QueryService } from "./query.service";
 import { EmbeddingService } from "../ingestion/embedding.service";
 import { VectorStoreService } from "../ingestion/vector-store.service";
@@ -26,18 +27,29 @@ import { GroqProvider } from "./providers/groq.provider";
 import { OpenAiProvider } from "./providers/openai.provider";
 import type { LlmStructuredResponse } from "./providers";
 
+const mockColumnDetection = {
+  headerRowIndex: 0,
+  questionColumnIndex: 1,
+  answerColumnIndex: 2,
+};
+
+type MockCollection = {
+  query: jest.Mock;
+};
+
 describe("QueryService", () => {
   let service: QueryService;
   let embedder: Partial<EmbeddingService>;
   let vectorStore: Partial<VectorStoreService>;
   let groqProvider: Partial<GroqProvider>;
   let openAiProvider: Partial<OpenAiProvider>;
-  let mockCollection: any;
+  let mockCollection: MockCollection;
 
   const mockLlmResponse: LlmStructuredResponse = {
     answer: "MFA is required for all users per the access control policy.",
     citation: "access-policy.md - Access Control section",
     confidence_score: 0.92,
+    answerable: true,
   };
 
   beforeEach(() => {
@@ -65,11 +77,13 @@ describe("QueryService", () => {
     groqProvider = {
       name: "groq",
       generateAnswer: jest.fn().mockResolvedValue(mockLlmResponse),
+      generateJson: jest.fn().mockResolvedValue(mockColumnDetection),
     };
 
     openAiProvider = {
       name: "openai",
       generateAnswer: jest.fn().mockResolvedValue(mockLlmResponse),
+      generateJson: jest.fn().mockResolvedValue(mockColumnDetection),
     };
 
     service = new QueryService(
@@ -153,6 +167,18 @@ describe("QueryService", () => {
       ).rejects.toThrow('Unknown LLM provider: "unknown-provider"');
     });
 
+    it.each(["", "   "])(
+      "should reject blank question input %p before embedding",
+      async (question) => {
+        const result = service.query({ question });
+        await expect(result).rejects.toThrow(BadRequestException);
+        await expect(result).rejects.toThrow(
+          "Question must be a non-empty string.",
+        );
+        expect(embedder.embedText).not.toHaveBeenCalled();
+      },
+    );
+
     it("should deduplicate citations by source", async () => {
       mockCollection.query.mockResolvedValue({
         documents: [["Chunk 1 from policy", "Chunk 2 from same policy"]],
@@ -204,6 +230,44 @@ describe("QueryService", () => {
       const providers = service.getAvailableProviders();
       expect(providers).toContain("groq");
       expect(providers).toContain("openai");
+    });
+  });
+
+  describe("detectQuestionnaireColumns", () => {
+    it("should use the selected provider for AI column detection", async () => {
+      const result = await service.detectQuestionnaireColumns({
+        fileName: "questionnaire.xlsx",
+        rows: [
+          ["ID", "Question", "Answer"],
+          ["1", "Do you use MFA?", ""],
+        ],
+        model_choice: "openai",
+      });
+
+      expect(openAiProvider.generateJson).toHaveBeenCalled();
+      expect(result).toEqual(mockColumnDetection);
+    });
+
+    it("should fall back to heuristic detection when the model response fails", async () => {
+      groqProvider.generateJson = jest.fn().mockRejectedValue(new Error("bad json"));
+
+      const result = await service.detectQuestionnaireColumns({
+        fileName: "questionnaire.xlsx",
+        rows: [
+          ["Control ID", "Question Text", "Response"],
+          ["AC-1", "Is MFA required for admins?", ""],
+        ],
+      });
+
+      expect(result.headerRowIndex).toBe(0);
+      expect(result.questionColumnIndex).toBe(1);
+      expect(result.answerColumnIndex).toBe(2);
+    });
+
+    it("should reject empty questionnaire samples", async () => {
+      await expect(
+        service.detectQuestionnaireColumns({ rows: [] }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

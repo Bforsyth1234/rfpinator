@@ -10,7 +10,15 @@ export interface JudgeScores {
   faithfulnessScore: number;
 }
 
-const JUDGE_SYSTEM_PROMPT = `You are an expert evaluation judge for a RAG (Retrieval-Augmented Generation) system.
+/** Scores plus the prompts used for auditability */
+export interface JudgeResult extends JudgeScores {
+  /** The system prompt sent to the judge */
+  judgeSystemPrompt: string;
+  /** The user message sent to the judge */
+  judgeUserMessage: string;
+}
+
+export const JUDGE_SYSTEM_PROMPT = `You are an expert evaluation judge for a RAG (Retrieval-Augmented Generation) system.
 You will be given:
 - A question
 - The expected (ideal) answer
@@ -60,7 +68,7 @@ export class JudgeService {
     retrievedContext: string;
     expectedSources: string[];
     citedSources: string[];
-  }): Promise<JudgeScores> {
+  }): Promise<JudgeResult> {
     const userMessage = `Question: ${params.question}
 
 Expected Answer: ${params.expectedAnswer}
@@ -106,7 +114,12 @@ Cited Sources: ${params.citedSources.join(", ") || "(none)"}`;
       throw new Error("GPT-4o judge returned empty response");
     }
 
-    return this.parseScores(content);
+    const scores = this.parseScores(content);
+    return {
+      ...scores,
+      judgeSystemPrompt: JUDGE_SYSTEM_PROMPT,
+      judgeUserMessage: userMessage,
+    };
   }
 
   private parseScores(raw: string): JudgeScores {
