@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import type { EvalSummary, EvalResult, GoldenDatasetEntry, SavedEvalRunListItem, SavedEvalRun } from "@rfpinator/shared";
 import {
   fetchGoldenDataset,
@@ -11,6 +11,7 @@ import {
   fetchEvalRuns,
   fetchEvalRun,
   deleteEvalRun,
+  fetchPrompts,
 } from "@/lib/api-client";
 
 interface EvaluationViewProps {
@@ -38,6 +39,13 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
   const [streamingResults, setStreamingResults] = useState<EvalResult[]>([]);
   const [streamProgress, setStreamProgress] = useState<{ current: number; total: number } | null>(null);
 
+  // Prompt editor state
+  const [ragPrompt, setRagPrompt] = useState<string>("");
+  const [judgePrompt, setJudgePrompt] = useState<string>("");
+  const [defaultRagPrompt, setDefaultRagPrompt] = useState<string>("");
+  const [defaultJudgePrompt, setDefaultJudgePrompt] = useState<string>("");
+  const [showPromptEditors, setShowPromptEditors] = useState(false);
+
   // History state
   const [runs, setRuns] = useState<SavedEvalRunListItem[]>([]);
   const [selectedRun, setSelectedRun] = useState<SavedEvalRun | null>(null);
@@ -61,6 +69,15 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
         setStatus("error");
       });
     loadRuns();
+    // Load default prompts
+    fetchPrompts()
+      .then(({ ragSystemPrompt, judgeSystemPrompt }) => {
+        setRagPrompt(ragSystemPrompt);
+        setJudgePrompt(judgeSystemPrompt);
+        setDefaultRagPrompt(ragSystemPrompt);
+        setDefaultJudgePrompt(judgeSystemPrompt);
+      })
+      .catch(() => {}); // non-critical
   }, [loadRuns]);
 
   const handleRun = useCallback(async () => {
@@ -74,6 +91,8 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
     try {
       const finalSummary = await streamEvaluation({
         provider: selectedModel,
+        ragSystemPrompt: ragPrompt !== defaultRagPrompt ? ragPrompt : undefined,
+        judgeSystemPrompt: judgePrompt !== defaultJudgePrompt ? judgePrompt : undefined,
         onResult: (result, index, total) => {
           setStreamingResults((prev) => [...prev, result]);
           setStreamProgress({ current: index + 1, total });
@@ -171,7 +190,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Evaluation</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Run the RAG pipeline against a golden dataset and score with GPT-4o judge.
+            Run the RAG pipeline against a golden dataset and score with GPT-4.1 judge.
           </p>
         </div>
         <button
@@ -190,6 +209,73 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
           {error}
         </div>
       )}
+
+      {/* Prompt Editors */}
+      <div className="card">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between text-left"
+          onClick={() => setShowPromptEditors((v) => !v)}
+        >
+          <h2 className="text-lg font-semibold text-gray-800">
+            Prompt Engineering
+          </h2>
+          <span className="text-sm text-gray-500">
+            {showPromptEditors ? "▼ Collapse" : "▶ Expand"}
+          </span>
+        </button>
+        {showPromptEditors && (
+          <div className="mt-4 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label">RAG System Prompt</label>
+                {ragPrompt !== defaultRagPrompt && (
+                  <button
+                    type="button"
+                    onClick={() => setRagPrompt(defaultRagPrompt)}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Reset to Default
+                  </button>
+                )}
+              </div>
+              <textarea
+                className="input mt-1 font-mono text-xs"
+                rows={10}
+                value={ragPrompt}
+                onChange={(e) => setRagPrompt(e.target.value)}
+                placeholder="Loading default RAG prompt…"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label">Judge System Prompt</label>
+                {judgePrompt !== defaultJudgePrompt && (
+                  <button
+                    type="button"
+                    onClick={() => setJudgePrompt(defaultJudgePrompt)}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Reset to Default
+                  </button>
+                )}
+              </div>
+              <textarea
+                className="input mt-1 font-mono text-xs"
+                rows={10}
+                value={judgePrompt}
+                onChange={(e) => setJudgePrompt(e.target.value)}
+                placeholder="Loading default Judge prompt…"
+              />
+            </div>
+            {(ragPrompt !== defaultRagPrompt || judgePrompt !== defaultJudgePrompt) && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                ⚠️ Custom prompts will be used for the next evaluation run.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Golden Dataset */}
       <div className="card">
@@ -358,6 +444,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
                   <th className="px-3 py-2 text-center">Questions</th>
                   <th className="px-3 py-2 text-center">Avg Retrieval</th>
                   <th className="px-3 py-2 text-center">Avg Faithfulness</th>
+                  <th className="px-3 py-2 text-center">Avg Answer</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -377,6 +464,11 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
                     <td className="px-3 py-2 text-center">
                       <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${scoreColor(run.avgFaithfulness)}`}>
                         {run.avgFaithfulness.toFixed(2)}/5
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${scoreColor(run.avgAnswer ?? 0)}`}>
+                        {(run.avgAnswer ?? 0).toFixed(2)}/5
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right space-x-1">
@@ -435,7 +527,7 @@ function renderScoreCards(summary: EvalSummary) {
     return "text-red-700 bg-red-50";
   };
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-4 gap-4">
       <div className="card text-center">
         <div className="text-xs uppercase text-gray-500">Questions</div>
         <div className="mt-1 text-2xl font-bold">{summary.totalQuestions}</div>
@@ -450,6 +542,12 @@ function renderScoreCards(summary: EvalSummary) {
         <div className="text-xs uppercase text-gray-500">Avg Faithfulness</div>
         <div className={`mt-1 inline-block rounded px-2 text-2xl font-bold ${scoreColor(summary.avgFaithfulness)}`}>
           {summary.avgFaithfulness.toFixed(2)}/5
+        </div>
+      </div>
+      <div className="card text-center">
+        <div className="text-xs uppercase text-gray-500">Avg Answer</div>
+        <div className={`mt-1 inline-block rounded px-2 text-2xl font-bold ${scoreColor(summary.avgAnswer)}`}>
+          {summary.avgAnswer.toFixed(2)}/5
         </div>
       </div>
     </div>
@@ -492,6 +590,7 @@ function renderResultsTable(
               <th className="px-3 py-2">Generated Answer</th>
               <th className="px-3 py-2 text-center">Retrieval</th>
               <th className="px-3 py-2 text-center">Faithfulness</th>
+              <th className="px-3 py-2 text-center">Answer</th>
               <th className="px-3 py-2">Cited Sources</th>
             </tr>
           </thead>
@@ -500,8 +599,8 @@ function renderResultsTable(
               const isExpanded = expandedRow === i;
               const isPromptsOpen = expandedPrompts === i;
               return (
+                <React.Fragment key={i}>
                 <tr
-                  key={i}
                   className="border-b last:border-0 cursor-pointer hover:bg-gray-50 transition-colors align-top"
                   onClick={() => setExpandedRow(isExpanded ? null : i)}
                 >
@@ -551,6 +650,11 @@ function renderResultsTable(
                       {r.faithfulnessScore}/5
                     </span>
                   </td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${scoreColor(r.answerScore)}`}>
+                      {r.answerScore}/5
+                    </span>
+                  </td>
                   <td className={`px-3 py-2 text-xs text-gray-500 ${isExpanded ? "whitespace-normal" : ""}`}>
                     {r.citedSources.join(", ") || "—"}
                     {isExpanded && r.expectedSources.length > 0 && (
@@ -560,6 +664,17 @@ function renderResultsTable(
                     )}
                   </td>
                 </tr>
+                {isExpanded && r.judgeReasoning && (
+                  <tr className="bg-gray-50">
+                    <td colSpan={7} className="px-3 py-2">
+                      <p className="text-xs text-gray-500 italic">
+                        <span className="font-semibold not-italic text-gray-600">Judge Reasoning:</span>{" "}
+                        {r.judgeReasoning}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
           </tbody>

@@ -32,6 +32,8 @@ describe("EvaluationService", () => {
   const mockScores: JudgeResult = {
     retrievalScore: 4,
     faithfulnessScore: 5,
+    answerScore: 5,
+    reasoning: "Good retrieval and faithful answer.",
     judgeSystemPrompt: "mock judge system prompt",
     judgeUserMessage: "mock judge user message",
   };
@@ -69,6 +71,7 @@ describe("EvaluationService", () => {
       expect(summary.totalQuestions).toBe(2);
       expect(summary.avgRetrieval).toBe(4);
       expect(summary.avgFaithfulness).toBe(5);
+      expect(summary.avgAnswer).toBe(5);
       expect(summary.results).toHaveLength(2);
       expect(queryService.query).toHaveBeenCalledTimes(2);
       expect(judgeService.score).toHaveBeenCalledTimes(2);
@@ -104,6 +107,31 @@ describe("EvaluationService", () => {
       expect(result.expectedAnswer).toBe("Yes, MFA is required for all users.");
       expect(result.citedSources).toEqual(["access-policy.md"]);
       expect(result.expectedSources).toEqual(["access-policy.md"]);
+    });
+
+    it("should pass custom RAG system prompt to query service", async () => {
+      const customRagPrompt = "Custom RAG prompt";
+      await service.evaluate([sampleDataset[0]], { provider: "groq", ragSystemPrompt: customRagPrompt });
+
+      expect(queryService.query).toHaveBeenCalledWith(
+        expect.objectContaining({ ragSystemPrompt: customRagPrompt }),
+      );
+    });
+
+    it("should pass custom judge system prompt to judge service", async () => {
+      const customJudgePrompt = "Custom judge prompt";
+      await service.evaluate([sampleDataset[0]], { provider: "groq", judgeSystemPrompt: customJudgePrompt });
+
+      expect(judgeService.score).toHaveBeenCalledWith(
+        expect.objectContaining({ systemPrompt: customJudgePrompt }),
+      );
+    });
+
+    it("should record custom RAG prompt in result prompts field", async () => {
+      const customRagPrompt = "Custom RAG prompt";
+      const summary = await service.evaluate([sampleDataset[0]], { ragSystemPrompt: customRagPrompt });
+
+      expect(summary.results[0].prompts?.ragSystemPrompt).toBe(customRagPrompt);
     });
   });
 

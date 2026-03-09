@@ -14,6 +14,8 @@ export interface RagQueryRequest {
    * Takes precedence over `model` if both are provided.
    */
   model_choice?: string;
+  /** Optional custom system prompt to override the default RAG_SYSTEM_PROMPT */
+  ragSystemPrompt?: string;
 }
 
 export interface Citation {
@@ -178,9 +180,9 @@ export interface EvalPrompts {
   ragSystemPrompt: string;
   /** User message sent to the RAG LLM (includes retrieved context + question) */
   ragUserMessage: string;
-  /** System prompt sent to the GPT-4o judge */
+  /** System prompt sent to the LLM judge */
   judgeSystemPrompt: string;
-  /** User message sent to the GPT-4o judge */
+  /** User message sent to the LLM judge */
   judgeUserMessage: string;
 }
 
@@ -190,8 +192,12 @@ export interface EvalResult {
   expectedAnswer: string;
   faithfulnessScore: number;
   retrievalScore: number;
+  /** 1–5: How correct and complete the generated answer is compared to the expected answer. */
+  answerScore: number;
   citedSources: string[];
   expectedSources: string[];
+  /** Brief explanation from the judge for the scores */
+  judgeReasoning: string;
   /** Full prompts used for this question (RAG + judge) */
   prompts?: EvalPrompts;
 }
@@ -200,6 +206,7 @@ export interface EvalSummary {
   totalQuestions: number;
   avgFaithfulness: number;
   avgRetrieval: number;
+  avgAnswer: number;
   results: EvalResult[];
 }
 
@@ -223,5 +230,6 @@ export interface SavedEvalRunListItem {
   totalQuestions: number;
   avgFaithfulness: number;
   avgRetrieval: number;
+  avgAnswer: number;
 }
 

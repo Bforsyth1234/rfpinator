@@ -69,14 +69,13 @@ function printReport(summary: EvalSummary): void {
   console.log("=".repeat(70));
   console.log(`  Total Questions:       ${summary.totalQuestions}`);
   console.log(`  Avg Retrieval Score:   ${summary.avgRetrieval.toFixed(2)} / 5`);
-  console.log(
-    `  Avg Faithfulness Score: ${summary.avgFaithfulness.toFixed(2)} / 5`,
-  );
+  console.log(`  Avg Faithfulness Score: ${summary.avgFaithfulness.toFixed(2)} / 5`);
+  console.log(`  Avg Answer Score:      ${summary.avgAnswer.toFixed(2)} / 5`);
   console.log("-".repeat(70));
 
   for (const r of summary.results) {
     console.log(`\n  Q: ${r.question}`);
-    console.log(`  Retrieval: ${r.retrievalScore}/5  |  Faithfulness: ${r.faithfulnessScore}/5`);
+    console.log(`  Retrieval: ${r.retrievalScore}/5  |  Faithfulness: ${r.faithfulnessScore}/5  |  Answer: ${r.answerScore}/5`);
     console.log(`  Expected sources: ${r.expectedSources.join(", ")}`);
     console.log(`  Cited sources:    ${r.citedSources.join(", ") || "(none)"}`);
     console.log(

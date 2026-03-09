@@ -9,13 +9,17 @@ import {
   Param,
   Post,
   Put,
+  Res,
   Sse,
   MessageEvent,
   Query,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { Observable } from "rxjs";
 import type { GoldenDatasetEntry, SavedEvalRun, SavedEvalRunListItem } from "@rfpinator/shared";
 import { EvaluationService } from "./evaluation.service";
+import { RAG_SYSTEM_PROMPT } from "../query/query.service";
+import { JUDGE_SYSTEM_PROMPT } from "./judge.service";
 import * as path from "path";
 
 interface RunEvalRequest {
@@ -96,53 +100,69 @@ export class EvaluationController {
   }
 
   /**
-   * GET /evaluation/run/stream?provider=xxx
-   * SSE endpoint: streams per-question EvalResult events, then a final summary event.
+   * GET /evaluation/prompts
+   * Return the default RAG and Judge system prompts so the frontend can pre-populate editors.
    */
-  @Sse("run/stream")
-  streamEvaluation(
-    @Query("provider") provider?: string,
-  ): Observable<MessageEvent> {
+  @Get("prompts")
+  getPrompts(): { ragSystemPrompt: string; judgeSystemPrompt: string } {
+    return {
+      ragSystemPrompt: RAG_SYSTEM_PROMPT,
+      judgeSystemPrompt: JUDGE_SYSTEM_PROMPT,
+    };
+  }
+
+  /**
+   * POST /evaluation/run/stream
+   * SSE endpoint: streams per-question EvalResult events, then a final summary event.
+   * Uses POST so custom prompts can be sent in the body (avoids URL length limits).
+   * Manually writes SSE frames because NestJS @Sse only supports GET.
+   */
+  @Post("run/stream")
+  @HttpCode(HttpStatus.OK)
+  async streamEvaluation(
+    @Body() body: { provider?: string; ragSystemPrompt?: string; judgeSystemPrompt?: string },
+    @Res() res: Response,
+  ): Promise<void> {
+    const provider = body?.provider;
+    const ragSystemPrompt = body?.ragSystemPrompt;
+    const judgeSystemPrompt = body?.judgeSystemPrompt;
     const datasetPath = DEFAULT_DATASET_PATH;
 
     this.logger.log(
-      `SSE evaluation stream requested: provider=${provider ?? "default"}, dataset=${datasetPath}`,
+      `SSE evaluation stream requested: provider=${provider ?? "default"}, dataset=${datasetPath}, customRagPrompt=${!!ragSystemPrompt}, customJudgePrompt=${!!judgeSystemPrompt}`,
     );
 
+    // Set SSE headers manually
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
     const dataset = this.evaluationService.loadDataset(datasetPath);
-    const evalService = this.evaluationService;
-    const logger = this.logger;
+    const results: import("@rfpinator/shared").EvalResult[] = [];
 
-    return new Observable<MessageEvent>((subscriber) => {
-      (async () => {
-        const results: import("@rfpinator/shared").EvalResult[] = [];
-        try {
-          for await (const result of evalService.evaluateStream(dataset, { provider })) {
-            results.push(result);
-            subscriber.next({
-              data: JSON.stringify({ type: "result", index: results.length - 1, total: dataset.length, result }),
-            } as MessageEvent);
-          }
+    try {
+      for await (const result of this.evaluationService.evaluateStream(dataset, { provider, ragSystemPrompt, judgeSystemPrompt })) {
+        results.push(result);
+        const payload = JSON.stringify({ type: "result", index: results.length - 1, total: dataset.length, result });
+        res.write(`data: ${payload}\n\n`);
+      }
 
-          // Aggregate + persist
-          const summary = evalService.aggregate(results);
-          const prov = provider ?? "groq";
-          const savedRun = evalService.saveRun(summary, prov);
-          logger.log(`SSE eval run persisted as ${savedRun.id}`);
+      // Aggregate + persist
+      const summary = this.evaluationService.aggregate(results);
+      const prov = provider ?? "groq";
+      const savedRun = this.evaluationService.saveRun(summary, prov);
+      this.logger.log(`SSE eval run persisted as ${savedRun.id}`);
 
-          subscriber.next({
-            data: JSON.stringify({ type: "summary", summary, runId: savedRun.id }),
-          } as MessageEvent);
-        } catch (err) {
-          logger.error(`SSE stream error: ${err instanceof Error ? err.message : String(err)}`);
-          subscriber.next({
-            data: JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) }),
-          } as MessageEvent);
-        } finally {
-          subscriber.complete();
-        }
-      })();
-    });
+      const summaryPayload = JSON.stringify({ type: "summary", summary, runId: savedRun.id });
+      res.write(`data: ${summaryPayload}\n\n`);
+    } catch (err) {
+      this.logger.error(`SSE stream error: ${err instanceof Error ? err.message : String(err)}`);
+      const errorPayload = JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) });
+      res.write(`data: ${errorPayload}\n\n`);
+    } finally {
+      res.end();
+    }
   }
 
   // ── Eval Run CRUD ────────────────────────────────

@@ -54,7 +54,7 @@ export class EvaluationService {
    */
   async evaluate(
     dataset: GoldenDatasetEntry[],
-    options?: { provider?: string },
+    options?: { provider?: string; ragSystemPrompt?: string; judgeSystemPrompt?: string },
   ): Promise<EvalSummary> {
     const results: EvalResult[] = [];
     for await (const result of this.evaluateStream(dataset, options)) {
@@ -63,7 +63,7 @@ export class EvaluationService {
 
     const summary = this.aggregate(results);
     this.logger.log(
-      `Evaluation complete: avgRetrieval=${summary.avgRetrieval.toFixed(2)}, avgFaithfulness=${summary.avgFaithfulness.toFixed(2)}`,
+      `Evaluation complete: avgRetrieval=${summary.avgRetrieval.toFixed(2)}, avgFaithfulness=${summary.avgFaithfulness.toFixed(2)}, avgAnswer=${summary.avgAnswer.toFixed(2)}`,
     );
 
     // Auto-persist the run
@@ -79,7 +79,7 @@ export class EvaluationService {
    */
   async *evaluateStream(
     dataset: GoldenDatasetEntry[],
-    options?: { provider?: string },
+    options?: { provider?: string; ragSystemPrompt?: string; judgeSystemPrompt?: string },
   ): AsyncGenerator<EvalResult> {
     for (let i = 0; i < dataset.length; i++) {
       const entry = dataset[i];
@@ -88,9 +88,9 @@ export class EvaluationService {
       );
 
       try {
-        const result = await this.evaluateEntry(entry, options?.provider);
+        const result = await this.evaluateEntry(entry, options?.provider, options?.ragSystemPrompt, options?.judgeSystemPrompt);
         this.logger.log(
-          `  → retrieval=${result.retrievalScore}/5, faithfulness=${result.faithfulnessScore}/5`,
+          `  → retrieval=${result.retrievalScore}/5, faithfulness=${result.faithfulnessScore}/5, answer=${result.answerScore}/5`,
         );
         yield result;
       } catch (error) {
@@ -103,8 +103,10 @@ export class EvaluationService {
           expectedAnswer: entry.expectedAnswer,
           faithfulnessScore: 1,
           retrievalScore: 1,
+          answerScore: 1,
           citedSources: [],
           expectedSources: entry.expectedSources,
+          judgeReasoning: "",
         };
       }
     }
@@ -125,11 +127,14 @@ export class EvaluationService {
   private async evaluateEntry(
     entry: GoldenDatasetEntry,
     provider?: string,
+    ragSystemPrompt?: string,
+    judgeSystemPrompt?: string,
   ): Promise<EvalResult> {
     // 1. Call the RAG pipeline
     const ragResponse: RagQueryResponse = await this.queryService.query({
       question: entry.question,
       ...(provider ? { model_choice: provider } : {}),
+      ...(ragSystemPrompt ? { ragSystemPrompt } : {}),
     });
 
     // 2. Build context string from retrieved chunks
@@ -154,6 +159,7 @@ export class EvaluationService {
       retrievedContext,
       expectedSources: entry.expectedSources,
       citedSources,
+      ...(judgeSystemPrompt ? { systemPrompt: judgeSystemPrompt } : {}),
     });
 
     return {
@@ -162,10 +168,12 @@ export class EvaluationService {
       expectedAnswer: entry.expectedAnswer,
       faithfulnessScore: judgeResult.faithfulnessScore,
       retrievalScore: judgeResult.retrievalScore,
+      answerScore: judgeResult.answerScore,
       citedSources,
       expectedSources: entry.expectedSources,
+      judgeReasoning: judgeResult.reasoning,
       prompts: {
-        ragSystemPrompt: RAG_SYSTEM_PROMPT,
+        ragSystemPrompt: ragSystemPrompt ?? RAG_SYSTEM_PROMPT,
         ragUserMessage,
         judgeSystemPrompt: judgeResult.judgeSystemPrompt,
         judgeUserMessage: judgeResult.judgeUserMessage,
@@ -186,11 +194,16 @@ export class EvaluationService {
       total > 0
         ? results.reduce((sum, r) => sum + r.retrievalScore, 0) / total
         : 0;
+    const avgAnswer =
+      total > 0
+        ? results.reduce((sum, r) => sum + r.answerScore, 0) / total
+        : 0;
 
     return {
       totalQuestions: total,
       avgFaithfulness: Math.round(avgFaithfulness * 100) / 100,
       avgRetrieval: Math.round(avgRetrieval * 100) / 100,
+      avgAnswer: Math.round(avgAnswer * 100) / 100,
       results,
     };
   }
@@ -238,6 +251,7 @@ export class EvaluationService {
           totalQuestions: run.summary.totalQuestions,
           avgFaithfulness: run.summary.avgFaithfulness,
           avgRetrieval: run.summary.avgRetrieval,
+          avgAnswer: run.summary.avgAnswer ?? 0,
         });
       } catch {
         this.logger.warn(`Skipping corrupt eval run file: ${file}`);

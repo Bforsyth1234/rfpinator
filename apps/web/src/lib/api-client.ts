@@ -147,6 +147,13 @@ export async function deleteDocument(
 
 // ── Evaluation ───────────────────────────────
 
+/** Fetch the default RAG and Judge system prompts from the backend */
+export async function fetchPrompts(): Promise<{ ragSystemPrompt: string; judgeSystemPrompt: string }> {
+  return apiFetch<{ ragSystemPrompt: string; judgeSystemPrompt: string }>(
+    "/evaluation/prompts",
+  );
+}
+
 export async function fetchGoldenDataset(): Promise<GoldenDatasetEntry[]> {
   const data = await apiFetch<{ entries: GoldenDatasetEntry[] }>(
     "/evaluation/dataset",
@@ -194,20 +201,28 @@ export async function deleteGoldenDatasetEntry(
 }
 
 /**
- * Stream evaluation results via SSE.
+ * Stream evaluation results via SSE (POST-based to support custom prompts).
  * Calls `onResult` for each per-question result and returns the final EvalSummary.
  */
 export async function streamEvaluation(options: {
   provider?: string;
+  ragSystemPrompt?: string;
+  judgeSystemPrompt?: string;
   onResult: (result: EvalResult, index: number, total: number) => void;
   signal?: AbortSignal;
 }): Promise<EvalSummary> {
-  const params = new URLSearchParams();
-  if (options.provider) params.set("provider", options.provider);
-
   const res = await fetch(
-    `${API_BASE}/evaluation/run/stream?${params.toString()}`,
-    { signal: options.signal },
+    `${API_BASE}/evaluation/run/stream`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: options.provider,
+        ragSystemPrompt: options.ragSystemPrompt,
+        judgeSystemPrompt: options.judgeSystemPrompt,
+      }),
+      signal: options.signal,
+    },
   );
 
   if (!res.ok) {

@@ -30,7 +30,7 @@ describe("JudgeService", () => {
     citedSources: ["access-policy.md"],
   };
 
-  it("should return parsed scores from GPT-4o response", async () => {
+  it("should return parsed scores from judge response", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: () =>
@@ -41,6 +41,8 @@ describe("JudgeService", () => {
                 content: JSON.stringify({
                   retrievalScore: 5,
                   faithfulnessScore: 4,
+                  answerScore: 5,
+                  reasoning: "Retrieved context covers MFA requirement well.",
                 }),
               },
             },
@@ -52,6 +54,8 @@ describe("JudgeService", () => {
 
     expect(scores.retrievalScore).toBe(5);
     expect(scores.faithfulnessScore).toBe(4);
+    expect(scores.answerScore).toBe(5);
+    expect(scores.reasoning).toBe("Retrieved context covers MFA requirement well.");
     expect(mockFetch).toHaveBeenCalledWith(
       "https://api.openai.com/v1/chat/completions",
       expect.objectContaining({
@@ -74,6 +78,7 @@ describe("JudgeService", () => {
                 content: JSON.stringify({
                   retrievalScore: 10,
                   faithfulnessScore: -1,
+                  answerScore: 0,
                 }),
               },
             },
@@ -84,6 +89,8 @@ describe("JudgeService", () => {
     const scores = await service.score(scoreParams);
     expect(scores.retrievalScore).toBe(5);
     expect(scores.faithfulnessScore).toBe(1);
+    expect(scores.answerScore).toBe(1);
+    expect(scores.reasoning).toBe("");
   });
 
   it("should default to score 1 on parse failure", async () => {
@@ -98,6 +105,8 @@ describe("JudgeService", () => {
     const scores = await service.score(scoreParams);
     expect(scores.retrievalScore).toBe(1);
     expect(scores.faithfulnessScore).toBe(1);
+    expect(scores.answerScore).toBe(1);
+    expect(scores.reasoning).toBe("");
   });
 
   it("should throw on API error", async () => {
@@ -119,8 +128,67 @@ describe("JudgeService", () => {
     });
 
     await expect(service.score(scoreParams)).rejects.toThrow(
-      "GPT-4o judge returned empty response",
+      "GPT-4.1 judge returned empty response",
     );
+  });
+
+  it("should use custom system prompt when provided", async () => {
+    const customPrompt = "You are a custom judge. Return JSON.";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  retrievalScore: 4,
+                  faithfulnessScore: 3,
+                  answerScore: 4,
+                  reasoning: "Custom judge reasoning.",
+                }),
+              },
+            },
+          ],
+        }),
+    });
+
+    const result = await service.score({ ...scoreParams, systemPrompt: customPrompt });
+
+    expect(result.retrievalScore).toBe(4);
+    expect(result.faithfulnessScore).toBe(3);
+    expect(result.judgeSystemPrompt).toBe(customPrompt);
+
+    // Verify the custom prompt was sent in the API call
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.messages[0].content).toBe(customPrompt);
+  });
+
+  it("should use default prompt when no custom prompt provided", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  retrievalScore: 5,
+                  faithfulnessScore: 5,
+                  answerScore: 5,
+                  reasoning: "Perfect match.",
+                }),
+              },
+            },
+          ],
+        }),
+    });
+
+    const result = await service.score(scoreParams);
+
+    // Should use the default JUDGE_SYSTEM_PROMPT
+    expect(result.judgeSystemPrompt).toContain("expert evaluation judge");
+    expect(result.reasoning).toBe("Perfect match.");
   });
 });
 

@@ -157,8 +157,9 @@ export class QueryService {
     const userMessage = `Context chunks:\n${contextText}\n\nQuestion: ${question}`;
 
     // 5. Call the LLM provider
+    const systemPrompt = request.ragSystemPrompt ?? RAG_SYSTEM_PROMPT;
     const llmResponse = await provider.generateAnswer(
-      RAG_SYSTEM_PROMPT,
+      systemPrompt,
       userMessage,
     );
 
@@ -498,6 +499,7 @@ export class QueryService {
 
   /**
    * Build context text and structured chunk data from ChromaDB query results.
+   * Filters out chunks whose distance exceeds the configured threshold.
    */
   private buildContext(results: VectorQueryResults): {
     contextText: string;
@@ -507,10 +509,12 @@ export class QueryService {
     const documents = results.documents?.[0] ?? [];
     const metadatas = results.metadatas?.[0] ?? [];
     const distances = results.distances?.[0] ?? [];
+    const threshold = this.config.distanceThreshold;
 
     const retrievedChunks: RetrievedChunk[] = [];
     const citations: Citation[] = [];
     const contextParts: string[] = [];
+    let filteredCount = 0;
 
     for (let i = 0; i < documents.length; i++) {
       const text = documents[i] ?? "";
@@ -520,6 +524,12 @@ export class QueryService {
       const score = distance != null ? Math.max(0, 1 - distance) : 0;
 
       if (!text) continue;
+
+      // Filter chunks that exceed the distance threshold (0 = disabled)
+      if (threshold > 0 && distance != null && distance > threshold) {
+        filteredCount++;
+        continue;
+      }
 
       retrievedChunks.push({
         text,
@@ -538,6 +548,11 @@ export class QueryService {
         `[Chunk ${i + 1} | Source: ${meta.source ?? "unknown"} | Section: ${meta.pageOrSection ?? "N/A"}]\n${text}`,
       );
     }
+
+    // Always log distances so we can calibrate the threshold
+    this.logger.debug(
+      `Retrieval distances: [${distances.map((d) => d?.toFixed(3) ?? "null").join(", ")}] | kept ${retrievedChunks.length}/${documents.length} chunks (threshold=${threshold || "disabled"}, filtered=${filteredCount})`,
+    );
 
     return {
       contextText: contextParts.join("\n\n"),

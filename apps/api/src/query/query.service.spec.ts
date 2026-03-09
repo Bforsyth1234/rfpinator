@@ -87,7 +87,7 @@ describe("QueryService", () => {
     };
 
     service = new QueryService(
-      { defaultProvider: "groq", topK: 5, openaiModel: "gpt-4o-mini" },
+      { defaultProvider: "groq", topK: 5, openaiModel: "gpt-4o-mini", distanceThreshold: 1.0 },
       embedder as EmbeddingService,
       vectorStore as VectorStoreService,
       groqProvider as GroqProvider,
@@ -222,6 +222,82 @@ describe("QueryService", () => {
       const result = await service.query({ question: "Test" });
       expect(result.citations).toHaveLength(1);
       expect(result.citations[0].page).toBeUndefined();
+    });
+
+    it("should filter out chunks exceeding distance threshold", async () => {
+      // Return 3 chunks with increasing distance
+      mockCollection.query.mockResolvedValue({
+        documents: [["Close chunk", "Medium chunk", "Far chunk"]],
+        metadatas: [
+          [
+            { source: "policy-a.md", pageOrSection: "Section A" },
+            { source: "policy-b.md", pageOrSection: "Section B" },
+            { source: "policy-c.md", pageOrSection: "Section C" },
+          ],
+        ],
+        distances: [[0.2, 0.5, 1.5]],
+      });
+
+      // Strict threshold: only keep chunks with distance <= 0.6
+      const strictService = new QueryService(
+        { defaultProvider: "groq", topK: 5, openaiModel: "gpt-4o-mini", distanceThreshold: 0.6 },
+        embedder as EmbeddingService,
+        vectorStore as VectorStoreService,
+        groqProvider as GroqProvider,
+        openAiProvider as OpenAiProvider,
+      );
+
+      const result = await strictService.query({ question: "Test" });
+
+      // Should only have the 2 chunks within threshold (0.2 and 0.5)
+      expect(result.retrievedChunks).toHaveLength(2);
+      expect(result.retrievedChunks[0].source).toBe("policy-a.md");
+      expect(result.retrievedChunks[1].source).toBe("policy-b.md");
+    });
+
+    it("should keep all chunks when distance threshold is 0 (disabled)", async () => {
+      mockCollection.query.mockResolvedValue({
+        documents: [["Close chunk", "Far chunk"]],
+        metadatas: [
+          [
+            { source: "policy-a.md", pageOrSection: "Section A" },
+            { source: "policy-b.md", pageOrSection: "Section B" },
+          ],
+        ],
+        distances: [[0.2, 99.0]],
+      });
+
+      const noFilterService = new QueryService(
+        { defaultProvider: "groq", topK: 5, openaiModel: "gpt-4o-mini", distanceThreshold: 0 },
+        embedder as EmbeddingService,
+        vectorStore as VectorStoreService,
+        groqProvider as GroqProvider,
+        openAiProvider as OpenAiProvider,
+      );
+
+      const result = await noFilterService.query({ question: "Test" });
+      expect(result.retrievedChunks).toHaveLength(2);
+    });
+
+    it("should return no-context response when all chunks are filtered out", async () => {
+      mockCollection.query.mockResolvedValue({
+        documents: [["Far chunk"]],
+        metadatas: [[{ source: "policy.md", pageOrSection: "S1" }]],
+        distances: [[2.0]],
+      });
+
+      const veryStrictService = new QueryService(
+        { defaultProvider: "groq", topK: 5, openaiModel: "gpt-4o-mini", distanceThreshold: 0.3 },
+        embedder as EmbeddingService,
+        vectorStore as VectorStoreService,
+        groqProvider as GroqProvider,
+        openAiProvider as OpenAiProvider,
+      );
+
+      const result = await veryStrictService.query({ question: "Test" });
+      expect(result.answer).toContain("No relevant context");
+      expect(result.retrievedChunks).toHaveLength(0);
+      expect(groqProvider.generateAnswer).not.toHaveBeenCalled();
     });
   });
 

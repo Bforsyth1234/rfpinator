@@ -7,7 +7,7 @@ export const chromaConfig = registerAs("chroma", () => ({
 }));
 
 export const embeddingConfig = registerAs("embedding", () => ({
-  model: process.env.LLAMAINDEX_EMBEDDING_MODEL ?? "text-embedding-3-small",
+  model: process.env.LLAMAINDEX_EMBEDDING_MODEL ?? "text-embedding-3-large",
   apiKey: process.env.OPENAI_API_KEY ?? "",
 }));
 
@@ -29,5 +29,7 @@ export const queryConfig = registerAs("query", () => ({
   topK: parseInt(process.env.RAG_TOP_K ?? "5", 10),
   /** OpenAI model for answering (when provider=openai) */
   openaiModel: process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini",
+  /** Max ChromaDB distance to keep a chunk (lower = stricter). 0 = disabled. */
+  distanceThreshold: parseFloat(process.env.RAG_DISTANCE_THRESHOLD ?? "1.0"),
 }));
 
