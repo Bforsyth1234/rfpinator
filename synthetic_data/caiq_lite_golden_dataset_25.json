@@ -1,0 +1,179 @@
+[
+  {
+    "question": "Is multi-factor authentication required for all users?",
+    "expectedAnswer": "Yes, multi-factor authentication (MFA) is mandatory for all users across all systems without exception. Approved methods include hardware security keys (YubiKey, required for privileged accounts), Okta Verify push notifications with phishing-resistant number matching, and TOTP as a fallback only. SMS-based MFA is explicitly prohibited.",
+    "expectedSources": [
+      "07_Identity_Access_Management_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What encryption standard is used for data at rest?",
+    "expectedAnswer": "All data at rest is encrypted using AES-256-GCM, enforced at the storage layer via AWS KMS with customer-managed keys (CMKs) available for enterprise customers. Database encryption uses Transparent Data Encryption (TDE) for PostgreSQL and Amazon Aurora instances. All S3 buckets enforce SSE-KMS with bucket policies preventing unencrypted uploads.",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What is the incident response time SLA for critical incidents?",
+    "expectedAnswer": "Critical incidents (SEV-1) have a 15-minute response time SLA. SEV-1 events include active data breaches, complete service outages, ransomware, or compromise of the authentication system. The CISO, CEO, Legal, and affected customers must be notified within 1 hour. The on-call rotation ensures 24/7/365 coverage.",
+    "expectedSources": [
+      "04_Incident_Response_Plan.pdf"
+    ]
+  },
+  {
+    "question": "What certifications and compliance standards does the organization hold?",
+    "expectedAnswer": "NimbusGuard holds SOC 2 Type II (audited by Deloitte), ISO 27001:2022 (certified by BSI Group, certificate #IS-789456), ISO 27017:2015, ISO 27018:2019, CSA STAR Level 2 Attestation, FedRAMP Moderate Authorization (Agency: GSA), HIPAA Business Associate capabilities, and PCI DSS v4.0 Level 1 Service Provider.",
+    "expectedSources": [
+      "01_Information_Security_Policy.pdf",
+      "09_Company_Overview_Security_Factsheet.pdf"
+    ]
+  },
+  {
+    "question": "What is the Recovery Time Objective (RTO) for critical services?",
+    "expectedAnswer": "The RTO for Tier 1 (Critical) services is 1 hour with a Recovery Point Objective (RPO) of 15 minutes. Tier 1 services include the authentication service, authorization engine, and API gateway. The infrastructure is deployed in an active-active configuration across two AWS regions (us-east-1 and us-west-2) with a warm standby in eu-central-1.",
+    "expectedSources": [
+      "03_Business_Continuity_DR_Plan.pdf",
+      "09_Company_Overview_Security_Factsheet.pdf"
+    ]
+  },
+  {
+    "question": "How is customer data isolated in a multi-tenant environment?",
+    "expectedAnswer": "NimbusGuard implements multi-tenant isolation at four layers: application layer (JWT claims with PostgreSQL row-level security), network layer (dedicated Kubernetes namespaces with restrictive network policies), encryption layer (dedicated KMS keys for enterprise customers), and audit layer (immutable logs with tenant ID, user ID, resource, and action recorded in write-once partitions).",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What background checks are performed on new employees?",
+    "expectedAnswer": "All prospective employees, contractors, and temporary staff undergo identity verification, criminal background check (7-year history), employment history verification (5 years), education verification, credit check (for financial system access roles only), and reference checks (minimum 2). Background checks are conducted by Sterling, an FCRA-compliant screening provider.",
+    "expectedSources": [
+      "05_HR_Security_Policy.pdf"
+    ]
+  },
+  {
+    "question": "How are changes to production systems managed?",
+    "expectedAnswer": "All infrastructure is defined in Terraform with a 'no click-ops' policy. Code changes require at least two approving reviews with CODEOWNERS enforcement. CI/CD pipelines (GitHub Actions) run SAST (Semgrep), SCA (Snyk), container scanning (Trivy), and IaC scanning (Checkov). Canary deployments with automated rollback are used, with changes soaked in staging for 24 hours. A Change Advisory Board meets weekly for high-risk changes.",
+    "expectedSources": [
+      "06_Infrastructure_Operations_Security.pdf"
+    ]
+  },
+  {
+    "question": "How are third-party vendors assessed for security risk?",
+    "expectedAnswer": "Vendors are assessed on a tiered basis: Critical vendors receive a full security questionnaire, SOC 2 review, penetration test report review, and on-site/virtual assessment; High vendors receive a questionnaire plus SOC 2 or ISO 27001 review; Medium vendors get an abbreviated questionnaire; Low vendors require contractual terms only. Critical and High vendors are monitored continuously via SecurityScorecard and must provide updated reports annually.",
+    "expectedSources": [
+      "08_Vendor_Supply_Chain_Management.pdf"
+    ]
+  },
+  {
+    "question": "How is privileged access to production systems managed?",
+    "expectedAnswer": "Privileged access is controlled through CyberArk Privileged Access Management. All sessions are brokered through CyberArk's Privileged Session Manager (PSM) with full session recording. Standing privileged access is prohibited \u2014 all access is just-in-time (JIT) with a maximum 4-hour session duration. Break-glass accounts require dual authorization and documented justification. All privileged actions are logged, correlated in the SIEM, and reviewed weekly.",
+    "expectedSources": [
+      "07_Identity_Access_Management_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What data classification levels are defined and what are examples of each?",
+    "expectedAnswer": "NimbusGuard classifies data into four tiers: Level 4 (Restricted) covers the highest sensitivity data with regulatory/legal obligations such as PII/PHI, payment data, encryption keys, and auth credentials; Level 3 (Confidential) covers business-sensitive internal data like source code, financial reports, customer contracts, and audit logs; Level 2 (Internal) covers general internal information such as wikis, project plans, org charts, and meeting notes; Level 1 (Public) covers content approved for external release like marketing materials, published APIs, and press releases. Classification must be applied at the point of creation or ingestion.",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What encryption protocols are used for data in transit?",
+    "expectedAnswer": "All network communications are encrypted using TLS 1.3 with a minimum of TLS 1.2. Internal service-to-service communication uses mutual TLS (mTLS) via a service mesh (Istio). API endpoints enforce HSTS with a minimum max-age of 31,536,000 seconds. SSL/TLS certificates are managed through AWS Certificate Manager and rotated automatically.",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "How are encryption keys managed and protected?",
+    "expectedAnswer": "Encryption keys are managed through AWS KMS. Master keys are stored in FIPS 140-2 Level 3 validated HSMs. Key rotation occurs automatically every 365 days for AWS-managed keys and can be configured by customers for customer-managed keys (CMKs). Key access is logged to CloudTrail and monitored by the SOC. Separation of duties ensures no single administrator can both create and use encryption keys.",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What is the data retention schedule for different categories of data?",
+    "expectedAnswer": "Customer application data is retained for the duration of the contract plus 90 days and disposed of via cryptographic erasure plus logical deletion. Authentication logs are kept for 13 months with automated SIEM purge. Audit trail and compliance logs are retained for 7 years, archived to Glacier, then cryptographically erased. Backup data is kept for 90 days (daily) and 12 months (monthly) with automated lifecycle deletion. Employee HR records are retained for the duration of employment plus 7 years. Marketing analytics data is kept for 24 months, anonymized, then deleted.",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What privacy regulations does the organization comply with and how are data subject rights handled?",
+    "expectedAnswer": "NimbusGuard complies with GDPR (EU), CCPA/CPRA (California), PIPEDA (Canada), and the Australian Privacy Act 1988. A dedicated Data Protection Officer (Marcus Chen) oversees privacy compliance. All data subject rights under GDPR are supported including right of access, rectification, erasure, restriction of processing, data portability, and right to object. Data subject requests are processed within 30 calendar days and can be submitted via privacy@nimbusguard.io or the in-product privacy dashboard. Data Processing Agreements with Standard Contractual Clauses (EU Commission Decision 2021/914) are maintained with all customer data controllers.",
+    "expectedSources": [
+      "02_Data_Protection_Privacy_Policy.pdf"
+    ]
+  },
+  {
+    "question": "What is the backup strategy and how are backups tested?",
+    "expectedAnswer": "Automated backups include continuous transaction log shipping for Aurora databases enabling point-in-time recovery up to 35 days; daily encrypted snapshots of all EBS volumes and RDS instances retained for 90 days; weekly full backups of configuration data stored in a separate AWS account (backup vault) with cross-region replication; and monthly archived backups retained for 12 months in S3 Glacier Deep Archive. All backups are encrypted with AES-256 and tested for restorability monthly. The most recent backup restoration test (February 2026) passed with all databases restored successfully.",
+    "expectedSources": [
+      "03_Business_Continuity_DR_Plan.pdf"
+    ]
+  },
+  {
+    "question": "How often is the business continuity and disaster recovery plan tested, and what types of tests are performed?",
+    "expectedAnswer": "The BC/DR plan is tested at least twice annually. Test types include: tabletop exercises (quarterly, last December 2025 with 2 minor findings); automated failover tests (monthly, last February 2026 with RTO met at 42 minutes); full regional failover drills (semi-annually, last November 2025 with RTO met at 56 minutes); backup restoration tests (monthly, last February 2026 with all databases restored); and ransomware simulations (annually, last October 2025 with recovery within RTO).",
+    "expectedSources": [
+      "03_Business_Continuity_DR_Plan.pdf"
+    ]
+  },
+  {
+    "question": "What is the breach notification process and timeline?",
+    "expectedAnswer": "In the event of a confirmed data breach involving personal data, NimbusGuard will notify the relevant supervisory authority within 72 hours of becoming aware of the breach (per GDPR Article 33); notify affected data subjects without undue delay where the breach poses high risk to their rights and freedoms (per GDPR Article 34); notify affected customers contractually within 48 hours via the designated security contact; and file reports with relevant US state attorneys general as required by applicable breach notification laws.",
+    "expectedSources": [
+      "04_Incident_Response_Plan.pdf"
+    ]
+  },
+  {
+    "question": "What security monitoring and detection tools does the SOC use?",
+    "expectedAnswer": "NimbusGuard operates a 24/7 Security Operations Center staffed by internal analysts (Tier 2/3) and a managed detection service (Arctic Wolf, Tier 1). Detection tools include: Splunk Enterprise Security as the SIEM with over 850 custom correlation rules; CrowdStrike Falcon for endpoint detection and response on all endpoints and servers; Wiz for cloud workload protection, vulnerability management, and posture management (CNAPP); Darktrace for network traffic analysis and anomaly detection (NDR); AWS WAF with OWASP Core, Bot Control, and IP Reputation rule sets; and Nightfall AI for data loss prevention across SaaS applications and code repositories.",
+    "expectedSources": [
+      "04_Incident_Response_Plan.pdf"
+    ]
+  },
+  {
+    "question": "What happens to system access when an employee is terminated or changes roles?",
+    "expectedAnswer": "Upon termination (voluntary or involuntary), the following actions are completed within 4 hours: all logical access is revoked (SSO, VPN, email, cloud consoles, code repositories); physical access badges are deactivated; company-owned devices are collected and securely wiped; the departing employee's manager certifies completion of data transfer procedures; and a separation checklist is signed by HR, IT, and the employee's manager. For internal role changes, a formal access review is triggered by the HRIS (Workday) and completed within 5 business days. Previous role access is removed before new role access is provisioned following the principle of least privilege.",
+    "expectedSources": [
+      "05_HR_Security_Policy.pdf"
+    ]
+  },
+  {
+    "question": "How is the network architecture secured?",
+    "expectedAnswer": "Network architecture follows a zero-trust model with separate VPCs for production, staging, development, and management with no direct connectivity between environments. Security groups use least-privilege rules with default deny-all and require peer review in Terraform. All application and database tiers run in private subnets with no direct internet access, with outbound traffic routed through NAT gateways with egress filtering. AWS PrivateLink is used for all AWS service endpoints to eliminate public internet traversal. AWS WAF is deployed on all public-facing ALBs with OWASP Core Rule Set, rate limiting, and geo-blocking. AWS Shield Advanced provides DDoS protection on all production endpoints.",
+    "expectedSources": [
+      "06_Infrastructure_Operations_Security.pdf"
+    ]
+  },
+  {
+    "question": "What are the vulnerability remediation SLAs by severity?",
+    "expectedAnswer": "Remediation SLAs vary by scanning type and severity. For infrastructure scanning (Wiz, AWS Inspector): Critical 24 hours, High 7 days, Medium 30 days. For application DAST (Burp Suite Enterprise): Critical 48 hours, High 14 days. For static analysis (Semgrep): Critical findings block the merge entirely, High 7 days. For dependency scanning (Snyk): Critical 24 hours, High 7 days. For container image scanning (Trivy): Critical 24 hours, High 7 days. External penetration testing is performed annually by CrowdStrike Services, and a continuous bug bounty program runs through HackerOne.",
+    "expectedSources": [
+      "06_Infrastructure_Operations_Security.pdf"
+    ]
+  },
+  {
+    "question": "What logging infrastructure is in place and how long are logs retained?",
+    "expectedAnswer": "Centralized logging is mandatory for all production systems. Logs are shipped to Splunk Enterprise Security via Fluent Bit agents. Log sources include application logs, API access logs, AWS CloudTrail (management and data events), VPC Flow Logs, DNS query logs, Kubernetes audit logs, WAF logs, and authentication/authorization events. Logs are retained for a minimum of 13 months in hot storage and 7 years in cold storage (S3 Glacier). All logs are immutable after ingestion (write-once, read-many). Over 850 correlation rules and machine learning models power automated threat detection with a mean time to detect under 5 minutes for known attack patterns.",
+    "expectedSources": [
+      "06_Infrastructure_Operations_Security.pdf"
+    ]
+  },
+  {
+    "question": "How is the software supply chain secured?",
+    "expectedAnswer": "NimbusGuard secures its software supply chain through: Software Bill of Materials (SBOM) generated for every release using Syft in SPDX format; continuous third-party dependency scanning by Snyk for known vulnerabilities; container base images sourced from a curated internal registry, rebuilt weekly from upstream, and signed using Cosign (Sigstore); GPG-signed Git commits with CI/CD provenance attestation enforced at SLSA Level 3; and open source license compliance enforced via FOSSA.",
+    "expectedSources": [
+      "08_Vendor_Supply_Chain_Management.pdf"
+    ]
+  },
+  {
+    "question": "How are user access reviews conducted and how frequently?",
+    "expectedAnswer": "Access reviews follow a structured schedule: user access certifications covering all user accounts are performed quarterly by people managers; privileged access reviews covering admin and root accounts are conducted monthly by the CISO; service account reviews are performed semi-annually by system owners; third-party access reviews covering vendor and partner accounts are quarterly by the vendor manager; and orphaned account scans across all identity providers run monthly via automation by the IAM team. Quarterly access certification campaigns are automated through SailPoint. Dormant accounts with no login for 90 days are automatically disabled.",
+    "expectedSources": [
+      "07_Identity_Access_Management_Policy.pdf"
+    ]
+  }
+]

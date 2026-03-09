@@ -22,6 +22,21 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Next.js
+.next/
+
 # Logs
 *.log
 npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Chroma local data
+chroma_data/
+
+# Turbo
+.turbo/

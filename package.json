@@ -1,0 +1,25 @@
+{
+  "name": "rfpinator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RFPinator – RAG-powered RFP/security questionnaire answering prototype",
+  "scripts": {
+    "install:all": "pnpm install",
+    "dev": "pnpm --parallel -r run dev",
+    "dev:web": "pnpm --filter @rfpinator/web dev",
+    "dev:api": "pnpm --filter @rfpinator/api dev",
+    "build": "pnpm -r run build",
+    "build:web": "pnpm --filter @rfpinator/web build",
+    "build:api": "pnpm --filter @rfpinator/api build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "evaluate": "pnpm --filter @rfpinator/api build && pnpm --filter @rfpinator/api evaluate --",
+    "clean": "pnpm -r run clean && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=18.17.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
