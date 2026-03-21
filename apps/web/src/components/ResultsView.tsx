@@ -6,17 +6,24 @@ import {
   exportResultsFile,
   type QuestionnaireExportTemplate,
 } from "@/lib/questionnaire-export";
+import type { StreamProgress } from "./Dashboard";
 
 interface ResultsViewProps {
   rows: QuestionnaireRow[];
   exportTemplate?: QuestionnaireExportTemplate | null;
   onUpdateRow: (id: string, updates: Partial<QuestionnaireRow>) => void;
+  onRemoveRow: (id: string) => void;
+  onRetryRow: (id: string) => void;
+  streamProgress?: StreamProgress | null;
 }
 
 export function ResultsView({
   rows,
   exportTemplate,
   onUpdateRow,
+  onRemoveRow,
+  onRetryRow,
+  streamProgress,
 }: ResultsViewProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -54,13 +61,15 @@ export function ResultsView({
 
   const approveAll = () => {
     rows.forEach((row) => {
-      if (row.status !== "approved") {
+      if (row.status !== "approved" && row.status !== "error") {
         onUpdateRow(row.id, { status: "approved" });
       }
     });
   };
 
-  if (rows.length === 0) {
+  const isStreaming = streamProgress !== null && streamProgress !== undefined;
+
+  if (rows.length === 0 && !isStreaming) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-gray-400">
         <p className="text-lg font-medium">No results yet</p>
@@ -71,9 +80,22 @@ export function ResultsView({
     );
   }
 
+  if (rows.length === 0 && isStreaming) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-brand-primary" />
+        <p className="mt-4 text-lg font-medium">Generating answers…</p>
+        <p className="mt-1 text-sm">
+          {streamProgress.completed} of {streamProgress.total} questions processed
+        </p>
+      </div>
+    );
+  }
+
   const approved = rows.filter((r) => r.status === "approved").length;
-  const answerable = rows.filter((r) => r.answerable !== false).length;
-  const unanswerable = rows.length - answerable;
+  const errorCount = rows.filter((r) => r.status === "error").length;
+  const answerable = rows.filter((r) => r.answerable !== false && r.status !== "error").length;
+  const unanswerable = rows.length - answerable - errorCount;
   const allApproved = rows.length > 0 && rows.every((r) => r.status === "approved");
   const exportLabel = exportTemplate?.kind === "xlsx" ? "Export XLSX" : "Export CSV";
 
@@ -101,7 +123,30 @@ export function ResultsView({
                 {unanswerable} unanswerable
               </span>
             )}
+            {errorCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-orange-700">
+                <span className="inline-block h-2 w-2 rounded-full bg-orange-500" />
+                {errorCount} failed
+              </span>
+            )}
           </div>
+          {isStreaming && (
+            <div className="mt-2">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-brand-primary" />
+                <span>
+                  Processing {streamProgress.completed} of {streamProgress.total}…
+                  {streamProgress.failed > 0 && ` (${streamProgress.failed} failed)`}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-64 overflow-hidden rounded-full bg-gray-200">
+                <div
+                  className="h-full rounded-full bg-brand-primary transition-all duration-300"
+                  style={{ width: `${(streamProgress.completed / streamProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
@@ -159,9 +204,11 @@ export function ResultsView({
               <tr
                 key={row.id}
                 className={
-                  row.answerable === false
-                    ? "border-l-4 border-red-200 bg-red-50 hover:bg-red-100"
-                    : "hover:bg-gray-50"
+                  row.status === "error"
+                    ? "border-l-4 border-orange-300 bg-orange-50 hover:bg-orange-100"
+                    : row.answerable === false
+                      ? "border-l-4 border-red-200 bg-red-50 hover:bg-red-100"
+                      : "hover:bg-gray-50"
                 }
               >
                 {/* Location */}
@@ -256,13 +303,31 @@ export function ResultsView({
                     </div>
                   ) : (
                     <div className="flex justify-end gap-2">
-                      {row.status !== "approved" && (
-                        <button onClick={() => approve(row.id)} className="btn-primary text-xs">
-                          Approve
+                      {row.status === "error" ? (
+                        <button
+                          onClick={() => onRetryRow(row.id)}
+                          className="rounded border border-orange-400 bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                        >
+                          Retry
                         </button>
+                      ) : (
+                        <>
+                          {row.status !== "approved" && (
+                            <button onClick={() => approve(row.id)} className="btn-primary text-xs">
+                              Approve
+                            </button>
+                          )}
+                          <button onClick={() => startEdit(row)} className="btn-secondary text-xs">
+                            Edit
+                          </button>
+                        </>
                       )}
-                      <button onClick={() => startEdit(row)} className="btn-secondary text-xs">
-                        Edit
+                      <button
+                        onClick={() => onRemoveRow(row.id)}
+                        className="rounded border border-gray-300 bg-gray-100 px-2 py-1 text-xs text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                        title="Not a Question — remove this row"
+                      >
+                        Not a Question
                       </button>
                     </div>
                   )}
@@ -319,7 +384,9 @@ function StatusBadge({ status }: { status: QuestionnaireRow["status"] }) {
       ? "badge-approved"
       : status === "edited"
         ? "badge-edited"
-        : "badge-pending";
+        : status === "error"
+          ? "inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700"
+          : "badge-pending";
   return <span className={cls}>{status}</span>;
 }
 

@@ -32,7 +32,27 @@ export class VectorStoreService implements OnModuleInit {
   }
 
   /**
+   * Remove any existing chunks for a given filename (deduplication).
+   */
+  async deleteByFilename(filename: string): Promise<number> {
+    const existing = await this.collection.get({
+      where: { source: filename },
+    });
+
+    if (!existing.ids || existing.ids.length === 0) {
+      return 0;
+    }
+
+    await this.collection.delete({ ids: existing.ids });
+    this.logger.log(
+      `Deduplicated: removed ${existing.ids.length} existing chunks for "${filename}"`,
+    );
+    return existing.ids.length;
+  }
+
+  /**
    * Store text chunks with their embeddings and citation metadata.
+   * Automatically removes any previous chunks for the same filename (upsert behavior).
    */
   async addChunks(
     chunks: TextChunk[],
@@ -40,6 +60,9 @@ export class VectorStoreService implements OnModuleInit {
     documentId: string,
     filename: string,
   ): Promise<string[]> {
+    // Remove old chunks for this filename to prevent duplicates
+    await this.deleteByFilename(filename);
+
     const ids = chunks.map(() => uuidv4());
     const documents = chunks.map((c) => c.text);
     const metadatas = chunks.map((chunk): Record<string, string | number> => ({

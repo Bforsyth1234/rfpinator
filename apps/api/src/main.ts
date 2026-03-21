@@ -5,7 +5,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
 
-  const port = process.env.API_PORT ?? 3001;
+  // Railway injects PORT; fall back to API_PORT or 3001
+  const port = process.env.PORT ?? process.env.API_PORT ?? 3001;
   await app.listen(port);
   console.log(`RFPinator API listening on port ${port}`);
 }

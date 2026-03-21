@@ -66,7 +66,7 @@ Rules:
 const QUESTIONNAIRE_ROW_CLASSIFICATION_PROMPT = `You classify rows extracted from a spreadsheet questionnaire.
 For each row you receive, determine whether it is:
 - A real question, requirement, or control specification that needs an answer (isQuestion = true)
-- A section title, heading, label, category name, footer, or non-question text (isQuestion = false)
+- A non-question row that should be skipped (isQuestion = false)
 
 You MUST respond with valid JSON matching this exact schema:
 {
@@ -77,8 +77,14 @@ You MUST respond with valid JSON matching this exact schema:
 
 Rules:
 - Return one entry per input row, preserving the same "id" values.
-- Section titles/headings are short labels like "Audit & Assurance - A&A" or "End of Standard".
-- Real questions/requirements are longer and describe specific controls, policies, or actions to implement.
+- isQuestion = true: The row asks a specific question OR states a security/compliance requirement, control, or policy that an organization must address. These require a substantive answer about an organization's practices.
+- isQuestion = false for ANY of these:
+  - Section titles, headings, labels, or category names (e.g. "Audit & Assurance - A&A", "End of Standard")
+  - Introductory or explanatory text that describes the document/spreadsheet itself (e.g. "This section explains...", "This spreadsheet includes...", "The purpose of this document is...")
+  - Meta-descriptions about the structure, format, or layout of the questionnaire (e.g. "Each control is described by a...", "The CCM Lite V4 includes 96 controls...")
+  - Instructional text telling the reader how to fill out or interpret the form
+  - Footers, disclaimers, or boilerplate text
+- A key test: if the row is ABOUT the document/spreadsheet rather than asking something an organization needs to answer about their own practices, it is NOT a question.
 - If in doubt, classify as a question (isQuestion = true).
 - Only return JSON. No markdown, no explanation.`;
 

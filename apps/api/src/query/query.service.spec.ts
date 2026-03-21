@@ -251,8 +251,8 @@ describe("QueryService", () => {
 
       // Should only have the 2 chunks within threshold (0.2 and 0.5)
       expect(result.retrievedChunks).toHaveLength(2);
-      expect(result.retrievedChunks[0].source).toBe("policy-a.md");
-      expect(result.retrievedChunks[1].source).toBe("policy-b.md");
+      expect(result.retrievedChunks![0].source).toBe("policy-a.md");
+      expect(result.retrievedChunks![1].source).toBe("policy-b.md");
     });
 
     it("should keep all chunks when distance threshold is 0 (disabled)", async () => {
