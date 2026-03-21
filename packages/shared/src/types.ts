@@ -159,7 +159,7 @@ export interface QuestionnaireRow {
   citations?: Citation[];
   confidenceScore?: number;
   /** User review status */
-  status: "pending" | "approved" | "edited";
+  status: "pending" | "approved" | "edited" | "error";
   /** Location of the question in the original file */
   location?: QuestionnaireRowLocation;
   /** Whether the AI had enough context to meaningfully answer the question */

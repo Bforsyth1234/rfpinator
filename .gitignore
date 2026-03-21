@@ -38,5 +38,11 @@ coverage/
 # Chroma local data
 chroma_data/
 
+# Evaluation run data (generated at runtime)
+data/eval_runs/
+
+# Questionnaire result exports (generated at runtime)
+synthetic_data/results/
+
 # Turbo
 .turbo/
