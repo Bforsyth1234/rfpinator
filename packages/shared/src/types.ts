@@ -233,3 +233,39 @@ export interface SavedEvalRunListItem {
   avgAnswer: number;
 }
 
+// ── Calendar ─────────────────────────────────
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startDate: string; // ISO-8601 date string
+  endDate?: string; // ISO-8601 date string (for multi-day events)
+  startTime?: string; // HH:MM format
+  endTime?: string; // HH:MM format
+  type: "rfp_deadline" | "evaluation" | "meeting" | "other";
+  /** Associated RFP or evaluation ID if applicable */
+  relatedId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCalendarEventRequest {
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  type: CalendarEvent["type"];
+  relatedId?: string;
+}
+
+export interface UpdateCalendarEventRequest extends Partial<CreateCalendarEventRequest> {
+  id: string;
+}
+
+export interface CalendarEventsResponse {
+  events: CalendarEvent[];
+}
+

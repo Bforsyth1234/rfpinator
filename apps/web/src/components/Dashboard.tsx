@@ -9,6 +9,7 @@ import { UploadView } from "./UploadView";
 import { ResultsView } from "./ResultsView";
 import { DocumentsView } from "./DocumentsView";
 import { EvaluationView } from "./EvaluationView";
+import { CalendarView } from "./CalendarView";
 
 export interface StreamProgress {
   completed: number;
@@ -154,6 +155,7 @@ export function Dashboard() {
         {view === "evaluation" && (
           <EvaluationView selectedModel={selectedModel} />
         )}
+        {view === "calendar" && <CalendarView />}
       </main>
     </div>
   );

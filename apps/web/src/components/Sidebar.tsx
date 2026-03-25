@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { clsx } from "clsx";
 
-export type View = "upload" | "results" | "documents" | "evaluation";
+export type View = "upload" | "results" | "documents" | "evaluation" | "calendar";
 
 interface SidebarProps {
   currentView: View;
@@ -18,6 +18,7 @@ const NAV_ITEMS: { key: View; label: string; icon: string }[] = [
   { key: "results", label: "Results", icon: "📊" },
   { key: "documents", label: "Documents", icon: "📁" },
   { key: "evaluation", label: "Evaluation", icon: "🧪" },
+  { key: "calendar", label: "Calendar", icon: "📅" },
 ];
 
 export function Sidebar({

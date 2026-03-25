@@ -5,6 +5,7 @@ import { AppService } from "./app.service";
 import { IngestionModule } from "./ingestion/ingestion.module";
 import { QueryModule } from "./query/query.module";
 import { EvaluationModule } from "./evaluation/evaluation.module";
+import { CalendarModule } from "./calendar/calendar.module";
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { EvaluationModule } from "./evaluation/evaluation.module";
     IngestionModule,
     QueryModule,
     EvaluationModule,
+    CalendarModule,
   ],
   controllers: [AppController],
   providers: [AppService],
