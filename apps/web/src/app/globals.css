@@ -2,9 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Primary Purple Shades */
+  --color-primary: #7c3aed;
+  --color-primary-light: #a855f7;
+  --color-primary-dark: #5b21b6;
+  
+  /* Secondary Yellow/Gold Shades */
+  --color-secondary: #f59e0b;
+  --color-secondary-light: #fcd34d;
+  --color-secondary-dark: #d97706;
+  
+  /* Accent colors */
+  --color-accent: #f3e8ff;
+}
+
 @layer base {
   body {
-    @apply bg-surface-muted text-gray-900 antialiased;
+    @apply bg-surface-muted text-stone-900 antialiased;
     font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
       sans-serif;
   }
@@ -16,7 +31,7 @@
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md border border-surface-border bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-md border border-surface-border bg-white px-4 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .card {
@@ -24,11 +39,11 @@
   }
 
   .input {
-    @apply block w-full rounded-md border border-surface-border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply block w-full rounded-md border border-surface-border bg-white px-3 py-2 text-sm shadow-sm placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .label {
-    @apply block text-sm font-medium text-gray-700;
+    @apply block text-sm font-medium text-stone-700;
   }
 
   .badge {
@@ -36,7 +51,7 @@
   }
 
   .badge-pending {
-    @apply badge bg-yellow-100 text-yellow-800;
+    @apply badge bg-secondary-100 text-secondary-700;
   }
 
   .badge-approved {
@@ -44,7 +59,7 @@
   }
 
   .badge-edited {
-    @apply badge bg-blue-100 text-blue-800;
+    @apply badge bg-brand-100 text-brand-700;
   }
 }
 
