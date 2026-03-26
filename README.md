@@ -29,6 +29,19 @@ scripts/        Evaluation CLI
   - Background: #faf5ff (surface-muted)
   - Border: #e9d5ff (surface-border)
 
+## Design System
+
+### Color Scheme
+- **Primary (Purple)**: #9333ea (brand-600)
+  - Light: #a855f7 (brand-500)
+  - Dark: #7e22ce (brand-700)
+- **Secondary (Yellow)**: #f59e0b (secondary-500)
+  - Light: #fcd34d (secondary-300)
+  - Dark: #d97706 (secondary-600)
+- **Surface Colors**:
+  - Background: #faf5ff (surface-muted)
+  - Border: #e9d5ff (surface-border)
+
 ## Prerequisites
 
 - Node.js ≥ 18.17
