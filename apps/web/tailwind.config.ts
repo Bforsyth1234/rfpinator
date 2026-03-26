@@ -6,18 +6,27 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          900: "#1e3a5f",
+          50: "#faf5ff",
+          100: "#f3e8ff",
+          200: "#e9d5ff",
+          500: "#a855f7",
+          600: "#9333ea",
+          700: "#7e22ce",
+          900: "#581c87",
+        },
+        secondary: {
+          50: "#fffbeb",
+          100: "#fef3c7",
+          200: "#fde68a",
+          300: "#fcd34d",
+          500: "#f59e0b",
+          600: "#d97706",
+          700: "#b45309",
         },
         surface: {
           DEFAULT: "#ffffff",
-          muted: "#f8fafc",
-          border: "#e2e8f0",
+          muted: "#faf5ff",
+          border: "#e9d5ff",
         },
       },
       fontFamily: {
