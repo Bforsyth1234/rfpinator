@@ -178,9 +178,9 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
   };
 
   const scoreColor = (score: number) => {
-    if (score >= 4) return "text-green-700 bg-green-50";
-    if (score >= 3) return "text-yellow-700 bg-yellow-50";
-    return "text-red-700 bg-red-50";
+    if (score >= 4) return "text-#2E8B57 bg-#3E8E41";
+    if (score >= 3) return "text-#B8860B bg-#F2C464";
+    return "text-#8B4513 bg-#754975";
   };
 
   return (
