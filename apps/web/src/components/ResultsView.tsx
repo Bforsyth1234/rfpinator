@@ -83,7 +83,7 @@ export function ResultsView({
   if (rows.length === 0 && isStreaming) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-gray-400">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-brand-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-brand-600" />
         <p className="mt-4 text-lg font-medium">Generating answers…</p>
         <p className="mt-1 text-sm">
           {streamProgress.completed} of {streamProgress.total} questions processed
@@ -133,7 +133,7 @@ export function ResultsView({
           {isStreaming && (
             <div className="mt-2">
               <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-brand-primary" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-brand-600" />
                 <span>
                   Processing {streamProgress.completed} of {streamProgress.total}…
                   {streamProgress.failed > 0 && ` (${streamProgress.failed} failed)`}
@@ -141,7 +141,7 @@ export function ResultsView({
               </div>
               <div className="mt-1 h-1.5 w-64 overflow-hidden rounded-full bg-gray-200">
                 <div
-                  className="h-full rounded-full bg-brand-primary transition-all duration-300"
+                  className="h-full rounded-full bg-brand-600 transition-all duration-300"
                   style={{ width: `${(streamProgress.completed / streamProgress.total) * 100}%` }}
                 />
               </div>
@@ -235,7 +235,7 @@ export function ResultsView({
                       <button
                         type="button"
                         onClick={() => toggleExpanded(setExpandedQuestions, row.id)}
-                        className="mt-1 text-xs font-medium text-brand-primary hover:underline"
+                        className="mt-1 text-xs font-medium text-brand-600 hover:underline"
                       >
                         {expandedQuestions.has(row.id) ? "Show less" : "Show more"}
                       </button>
@@ -263,7 +263,7 @@ export function ResultsView({
                         <button
                           type="button"
                           onClick={() => toggleExpanded(setExpandedAnswers, row.id)}
-                          className="mt-1 text-xs font-medium text-brand-primary hover:underline"
+                          className="mt-1 text-xs font-medium text-brand-600 hover:underline"
                         >
                           {expandedAnswers.has(row.id) ? "Show less" : "Show more"}
                         </button>
