@@ -6,13 +6,24 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          900: "#1e3a5f",
+          50: "#FFF3ED",
+          100: "#FFE0CC",
+          200: "#FFC49E",
+          500: "#FF6B35",
+          600: "#E85A24",
+          700: "#C44A18",
+          900: "#7C2D12",
+          primary: "#FF6B35",
+        },
+        accent: {
+          50: "#F0EDFF",
+          100: "#DDD6FE",
+          200: "#C4B5FD",
+          500: "#7B68EE",
+          600: "#6A55E0",
+          700: "#5B45C9",
+          900: "#3B2D7E",
+          primary: "#7B68EE",
         },
         surface: {
           DEFAULT: "#ffffff",
