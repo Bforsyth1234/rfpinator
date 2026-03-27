@@ -233,7 +233,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
                   <button
                     type="button"
                     onClick={() => setRagPrompt(defaultRagPrompt)}
-                    className="text-xs text-blue-600 hover:text-blue-800"
+                    className="text-xs text-brand-600 hover:text-brand-700"
                   >
                     Reset to Default
                   </button>
@@ -254,7 +254,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
                   <button
                     type="button"
                     onClick={() => setJudgePrompt(defaultJudgePrompt)}
-                    className="text-xs text-blue-600 hover:text-blue-800"
+                    className="text-xs text-brand-600 hover:text-brand-700"
                   >
                     Reset to Default
                   </button>
@@ -372,7 +372,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
                       <button
                         type="button"
                         onClick={() => startEdit(i)}
-                        className="rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                        className="rounded px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50"
                       >
                         Edit
                       </button>
@@ -400,7 +400,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
               ⏳ Evaluating question {streamProgress.current} of {streamProgress.total}…
               <div className="mt-2 mx-auto w-full max-w-md bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-brand-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${(streamProgress.current / streamProgress.total) * 100}%` }}
                 />
               </div>
@@ -475,7 +475,7 @@ export function EvaluationView({ selectedModel }: EvaluationViewProps) {
                       <button
                         type="button"
                         onClick={() => handleViewRun(run.id)}
-                        className="rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                        className="rounded px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50"
                       >
                         View
                       </button>
@@ -619,7 +619,7 @@ function renderResultsTable(
                           <div className="mt-2">
                             <button
                               type="button"
-                              className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                              className="text-xs font-medium text-brand-600 hover:text-brand-700"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setExpandedPrompts(isPromptsOpen ? null : i);

@@ -221,7 +221,7 @@ export function UploadView({
             step={5}
             value={batchSize}
             onChange={(e) => setBatchSize(Number(e.target.value))}
-            className="h-2 w-48 cursor-pointer accent-brand-primary"
+            className="h-2 w-48 cursor-pointer accent-accent-primary"
           />
           <span className="min-w-[3rem] text-sm font-medium text-gray-700">
             {batchSize}
