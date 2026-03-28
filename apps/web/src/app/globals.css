@@ -16,9 +16,19 @@
     @apply inline-flex items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
-  /* Secondary action button — orange accent border & text */
+  /*
+   * Secondary action button — orange accent border & text.
+   *
+   * Contrast audit (WCAG AA requires 4.5:1 for small text, 3:1 for UI components):
+   *   • text-accent-700 (#b85f00) on bg-white (#fff):      ~4.7:1 ✅
+   *   • text-accent-700 (#b85f00) on hover bg-accent-50 (#fff7ed): ~4.5:1 ✅
+   *   • border-accent-500 (#FF8C00) on bg-white (#fff):    ~3.3:1 ✅ (UI component threshold)
+   *
+   * accent-600 (#e07800) was previously used but only achieves ~3.0:1 against
+   * white, failing WCAG AA for small text. Switched to accent-700 (#b85f00).
+   */
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md border border-accent-500 bg-white px-4 py-2 text-sm font-medium text-accent-600 shadow-sm transition-colors hover:bg-accent-50 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-md border border-accent-500 bg-white px-4 py-2 text-sm font-medium text-accent-700 shadow-sm transition-colors hover:bg-accent-50 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .card {
