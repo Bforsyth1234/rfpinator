@@ -363,7 +363,7 @@ function CitationItem({ citation }: { citation: Citation }) {
             📎 {citation.source}
             {citation.page != null && ` (p.${citation.page})`}
           </span>
-          <span className="mt-0.5 block text-xs text-brand-600">
+          <span className="mt-0.5 block text-xs text-accent-600">
             {isExpanded ? "Hide citation text" : "Show citation text"}
           </span>
         </span>
