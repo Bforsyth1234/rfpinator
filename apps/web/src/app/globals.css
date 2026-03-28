@@ -37,9 +37,9 @@
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 
-  /* Pending — orange tint for visibility */
+  /* Pending — orange tint; text-accent-900 (#6b3600) on accent-100 (#ffe8c8) gives ~7.2:1 contrast, passing WCAG AA */
   .badge-pending {
-    @apply badge bg-accent-100 text-accent-700;
+    @apply badge bg-accent-100 text-accent-900;
   }
 
   /* Approved — keep green for universal "success" meaning */
