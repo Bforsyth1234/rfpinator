@@ -46,3 +46,6 @@ synthetic_data/results/
 
 # Turbo
 .turbo/
+
+# Aider
+.aider*
