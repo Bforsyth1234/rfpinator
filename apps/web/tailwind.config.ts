@@ -6,18 +6,29 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          900: "#1e3a5f",
+          50: "#f5eeff",
+          100: "#e8d5ff",
+          200: "#d0aaff",
+          500: "#7c3aad",
+          600: "#5e1f8f",
+          700: "#4a0e78",
+          800: "#360a5c",
+          900: "#220640",
+        },
+        accent: {
+          50: "#fff7ed",
+          100: "#ffedd5",
+          200: "#fed7aa",
+          400: "#fb923c",
+          500: "#ff8c00",
+          600: "#ea6c00",
+          700: "#c45200",
+          800: "#9a3d00",
         },
         surface: {
           DEFAULT: "#ffffff",
-          muted: "#f8fafc",
-          border: "#e2e8f0",
+          muted: "#faf7ff",
+          border: "#ddd0f0",
         },
       },
       fontFamily: {
@@ -35,4 +46,3 @@ const config: Config = {
 };
 
 export default config;
-
