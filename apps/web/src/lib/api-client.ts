@@ -1,8 +1,8 @@
 /**
  * Typed API client for the RFPinator backend.
- * In the Vite build the dev-server proxies /query, /ingestion, /evaluation
- * to http://localhost:3001, so BASE is empty for dev and can be overridden
- * via VITE_API_URL for production deployments.
+ * In development, Next.js rewrites proxy /query, /ingestion, /evaluation
+ * to http://localhost:3001. In production, set NEXT_PUBLIC_API_URL to the
+ * API server base URL (no trailing slash).
  */
 import type {
   QuestionnaireColumnDetectionRequest,
@@ -20,7 +20,7 @@ import type {
   SavedEvalRunListItem,
 } from "@rfpinator/shared";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /** Generic fetch wrapper with error handling */
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

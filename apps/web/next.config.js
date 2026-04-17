@@ -1,7 +1,27 @@
 /** @type {import('next').NextConfig} */
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
 const nextConfig = {
   transpilePackages: ["@rfpinator/shared"],
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/query/:path*",
+        destination: `${API_URL}/query/:path*`,
+      },
+      {
+        source: "/ingestion/:path*",
+        destination: `${API_URL}/ingestion/:path*`,
+      },
+      {
+        source: "/evaluation/:path*",
+        destination: `${API_URL}/evaluation/:path*`,
+      },
+    ];
+  },
+
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // exceljs relies on Node.js stream/buffer polyfills that webpack 5
@@ -29,4 +49,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-
