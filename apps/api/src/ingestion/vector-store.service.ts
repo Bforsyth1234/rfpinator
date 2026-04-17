@@ -116,25 +116,25 @@ export class VectorStoreService implements OnModuleInit {
    */
   async listDocuments(): Promise<DocumentInfo[]> {
     const all = await this.collection.get({});
-    const docMap = new Map<string, { source: string; count: number }>();
+    const docMap = new Map<string, { filename: string; count: number }>();
 
     if (all.metadatas) {
       for (const meta of all.metadatas) {
         if (!meta) continue;
         const docId = String(meta.documentId ?? "unknown");
-        const source = String(meta.source ?? "unknown");
+        const filename = String(meta.source ?? "unknown");
         const existing = docMap.get(docId);
         if (existing) {
           existing.count++;
         } else {
-          docMap.set(docId, { source, count: 1 });
+          docMap.set(docId, { filename, count: 1 });
         }
       }
     }
 
     return Array.from(docMap.entries()).map(([documentId, info]) => ({
       documentId,
-      source: info.source,
+      filename: info.filename,
       chunkCount: info.count,
     }));
   }
@@ -157,4 +157,3 @@ export class VectorStoreService implements OnModuleInit {
     return all.ids.length;
   }
 }
-
