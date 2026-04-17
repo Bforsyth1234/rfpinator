@@ -1,6 +1,8 @@
 /**
  * Typed API client for the RFPinator backend.
- * Base URL defaults to localhost:3001 (NestJS API).
+ * In the Vite build the dev-server proxies /query, /ingestion, /evaluation
+ * to http://localhost:3001, so BASE is empty for dev and can be overridden
+ * via VITE_API_URL for production deployments.
  */
 import type {
   QuestionnaireColumnDetectionRequest,
@@ -18,19 +20,15 @@ import type {
   SavedEvalRunListItem,
 } from "@rfpinator/shared";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 /** Generic fetch wrapper with error handling */
-async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...init?.headers,
+      ...(init?.headers ?? {}),
     },
   });
 
@@ -44,16 +42,14 @@ async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-// ── Providers ──────────────────────────────
+// ── Providers ──────────────────────────────────────────────────────────────
 
 export async function fetchProviders(): Promise<string[]> {
-  const data = await apiFetch<{ providers: string[] }>(
-    "/query/providers",
-  );
+  const data = await apiFetch<{ providers: string[] }>("/query/providers");
   return data.providers;
 }
 
-// ── Query ──────────────────────────────────
+// ── Query ───────────────────────────────────────────────────────────────────
 
 export async function submitQuery(
   req: RagQueryRequest,
@@ -103,11 +99,9 @@ export async function classifyQuestionnaireRows(
   );
 }
 
-// ── Ingestion (file upload) ────────────────
+// ── Ingestion (file upload) ─────────────────────────────────────────────────
 
-export async function uploadFiles(
-  files: File[],
-): Promise<IngestBatchResponse> {
+export async function uploadFiles(files: File[]): Promise<IngestBatchResponse> {
   const formData = new FormData();
   for (const file of files) {
     formData.append("files", file);
@@ -116,7 +110,7 @@ export async function uploadFiles(
   const res = await fetch(`${API_BASE}/ingestion/upload`, {
     method: "POST",
     body: formData,
-    // Do NOT set Content-Type — browser sets multipart boundary
+    // Do NOT set Content-Type — browser sets multipart boundary automatically
   });
 
   if (!res.ok) {
@@ -127,8 +121,7 @@ export async function uploadFiles(
   return res.json() as Promise<IngestBatchResponse>;
 }
 
-
-// ── Documents (vector store) ─────────────────
+// ── Documents (vector store) ────────────────────────────────────────────────
 
 export async function fetchDocuments(): Promise<DocumentInfo[]> {
   const data = await apiFetch<{ documents: DocumentInfo[] }>(
@@ -145,10 +138,13 @@ export async function deleteDocument(
   });
 }
 
-// ── Evaluation ───────────────────────────────
+// ── Evaluation ──────────────────────────────────────────────────────────────
 
 /** Fetch the default RAG and Judge system prompts from the backend */
-export async function fetchPrompts(): Promise<{ ragSystemPrompt: string; judgeSystemPrompt: string }> {
+export async function fetchPrompts(): Promise<{
+  ragSystemPrompt: string;
+  judgeSystemPrompt: string;
+}> {
   return apiFetch<{ ragSystemPrompt: string; judgeSystemPrompt: string }>(
     "/evaluation/prompts",
   );
@@ -200,30 +196,31 @@ export async function deleteGoldenDatasetEntry(
   return data.entries;
 }
 
-/**
- * Stream evaluation results via SSE (POST-based to support custom prompts).
- * Calls `onResult` for each per-question result and returns the final EvalSummary.
- */
-export async function streamEvaluation(options: {
+export interface StreamEvaluationOptions {
   provider?: string;
   ragSystemPrompt?: string;
   judgeSystemPrompt?: string;
   onResult: (result: EvalResult, index: number, total: number) => void;
   signal?: AbortSignal;
-}): Promise<EvalSummary> {
-  const res = await fetch(
-    `${API_BASE}/evaluation/run/stream`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: options.provider,
-        ragSystemPrompt: options.ragSystemPrompt,
-        judgeSystemPrompt: options.judgeSystemPrompt,
-      }),
-      signal: options.signal,
-    },
-  );
+}
+
+/**
+ * Stream evaluation results via SSE (POST-based to support custom prompts).
+ * Calls `onResult` for each per-question result and returns the final EvalSummary.
+ */
+export async function streamEvaluation(
+  options: StreamEvaluationOptions,
+): Promise<EvalSummary> {
+  const res = await fetch(`${API_BASE}/evaluation/run/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: options.provider,
+      ragSystemPrompt: options.ragSystemPrompt,
+      judgeSystemPrompt: options.judgeSystemPrompt,
+    }),
+    signal: options.signal,
+  });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -252,14 +249,18 @@ export async function streamEvaluation(options: {
         try {
           const event = JSON.parse(json);
           if (event.type === "result") {
-            options.onResult(event.result as EvalResult, event.index, event.total);
+            options.onResult(
+              event.result as EvalResult,
+              event.index,
+              event.total,
+            );
           } else if (event.type === "summary") {
             finalSummary = event.summary as EvalSummary;
           } else if (event.type === "error") {
             throw new Error(event.message);
           }
         } catch (e) {
-          if (e instanceof SyntaxError) continue; // skip malformed
+          if (e instanceof SyntaxError) continue; // skip malformed frames
           throw e;
         }
       }
@@ -272,7 +273,7 @@ export async function streamEvaluation(options: {
   return finalSummary;
 }
 
-// ── Eval Run History ────────────────────────────
+// ── Eval Run History ────────────────────────────────────────────────────────
 
 export async function fetchEvalRuns(): Promise<SavedEvalRunListItem[]> {
   const data = await apiFetch<{ runs: SavedEvalRunListItem[] }>(
@@ -290,4 +291,3 @@ export async function deleteEvalRun(id: string): Promise<void> {
     method: "DELETE",
   });
 }
-
