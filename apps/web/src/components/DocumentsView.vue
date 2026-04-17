@@ -26,7 +26,7 @@
           Select Files
         </button>
         <ul v-if="pendingFiles.length > 0" class="mt-3 space-y-1 text-sm text-gray-600">
-          <li v-for="f in pendingFiles" :key="f.name">📄 {{ f.name }}</li>
+          <li v-for="(f, index) in pendingFiles" :key="index">📄 {{ f.name }}</li>
         </ul>
       </div>
 
