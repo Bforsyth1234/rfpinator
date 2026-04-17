@@ -90,7 +90,7 @@
       <ul v-else class="mt-4 divide-y divide-surface-border">
         <li
           v-for="doc in documents"
-          :key="doc.id"
+          :key="doc.documentId"
           class="flex items-center justify-between py-3"
         >
           <div class="min-w-0 flex-1">
@@ -102,10 +102,10 @@
           <button
             type="button"
             class="ml-4 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100"
-            :disabled="deletingId === doc.id"
-            @click="handleDelete(doc.id)"
+            :disabled="deletingId === doc.documentId"
+            @click="handleDelete(doc.documentId)"
           >
-            {{ deletingId === doc.id ? "Deleting…" : "Delete" }}
+            {{ deletingId === doc.documentId ? "Deleting…" : "Delete" }}
           </button>
         </li>
       </ul>
@@ -169,12 +169,12 @@ async function loadDocuments() {
   }
 }
 
-async function handleDelete(id: string) {
+async function handleDelete(documentId: string) {
   if (!confirm("Delete this document from the vector store?")) return;
-  deletingId.value = id;
+  deletingId.value = documentId;
   try {
-    await deleteDocument(id);
-    documents.value = documents.value.filter((d) => d.id !== id);
+    await deleteDocument(documentId);
+    documents.value = documents.value.filter((d) => d.documentId !== documentId);
   } catch (err: unknown) {
     docsError.value =
       err instanceof Error ? err.message : "Failed to delete document.";

@@ -136,7 +136,7 @@ export interface DocumentInfo {
   /** Unique document identifier */
   documentId: string;
   /** Original filename */
-  source: string;
+  filename: string;
   /** Number of chunks stored for this document */
   chunkCount: number;
 }
@@ -232,4 +232,3 @@ export interface SavedEvalRunListItem {
   avgRetrieval: number;
   avgAnswer: number;
 }
-

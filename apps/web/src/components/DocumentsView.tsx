@@ -28,8 +28,8 @@ export function DocumentsView() {
   }, [loadDocuments]);
 
   const handleDelete = useCallback(
-    async (documentId: string, source: string) => {
-      if (!confirm(`Delete "${source}" and all its chunks?`)) return;
+    async (documentId: string, filename: string) => {
+      if (!confirm(`Delete "${filename}" and all its chunks?`)) return;
       try {
         await deleteDocument(documentId);
         setDocuments((prev) => prev.filter((d) => d.documentId !== documentId));
@@ -111,14 +111,14 @@ export function DocumentsView() {
               <tbody>
                 {documents.map((doc) => (
                   <tr key={doc.documentId} className="border-b last:border-0">
-                    <td className="px-3 py-2 font-medium">{doc.source}</td>
+                    <td className="px-3 py-2 font-medium">{doc.filename}</td>
                     <td className="px-3 py-2 text-center text-gray-500">
                       {doc.chunkCount}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <button
                         type="button"
-                        onClick={() => handleDelete(doc.documentId, doc.source)}
+                        onClick={() => handleDelete(doc.documentId, doc.filename)}
                         className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                       >
                         Delete
@@ -134,4 +134,3 @@ export function DocumentsView() {
     </div>
   );
 }
-
